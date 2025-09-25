@@ -42,9 +42,7 @@ jobs:
         run: rm ${{ steps.mpv-filename.outputs.fullname }}
 
       - name: Compress mpv using 7zip
-        run: 7z a ${{ steps.mpv-filename.outputs.fullname }} \
-          ${{ steps.mpv-filename.outputs.basename }} \
-          -t7z -m0=lzma2 -mx9 -mfb=273 -md=1024m -ms=on -mmt=on
+        run: 7z a ${{ steps.mpv-filename.outputs.fullname }} ${{ steps.mpv-filename.outputs.basename }} -mx9
 
       - name: Create release
         uses: ncipollo/release-action@v1
