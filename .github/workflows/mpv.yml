@@ -6,7 +6,7 @@ permissions:
 on:
   push:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -19,16 +19,16 @@ jobs:
         id: check
         run: |
           set -e
-          # Get latest commit hash (short) from mpv-player/mpv master
+          # Get latest commit from mpv repo
           latest_commit=$(curl -s https://api.github.com/repos/mpv-player/mpv/commits/master | jq -r .sha | cut -c1-7)
           echo "latest_commit=$latest_commit" >> $GITHUB_OUTPUT
           echo "Upstream mpv commit: $latest_commit"
 
-          # Get commit hash from your last release body (short)
-          my_commit=$(gh release view mpv --repo "${{ github.repository }}" --json body -q .body | grep -oP '(?<=mpv-player/mpv@)[0-9a-fA-F]+' || echo "none")
-          echo "My last commit: $my_commit"
+          # Get commit hash from last release
+          last_release_commit=$(gh release view mpv --repo "${{ github.repository }}" --json body -q .body | grep -oP '(?<=mpv-player/mpv@)[0-9a-fA-F]+' || echo "none")
+          echo "Last release commit: $last_release_commit"
 
-          if [ "$latest_commit" = "$my_commit" ]; then
+          if [ "$latest_commit" = "$last_release_commit" ]; then
             echo "No new mpv commits found."
             echo "skip=true" >> $GITHUB_OUTPUT
           else
