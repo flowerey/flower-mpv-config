@@ -6,12 +6,14 @@ permissions:
 on:
   push:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 jobs:
-  mpv:
+  check:
     runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
     steps:
       - name: Check for new mpv commit
         id: check
@@ -36,14 +38,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+  build:
+    needs: check
+    if: needs.check.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    steps:
       - name: Checkout repository
-        if: steps.check.outputs.skip == 'false'
         uses: actions/checkout@v4
         with:
           sparse-checkout: portable_config
 
       - name: Download mpv
-        if: steps.check.outputs.skip == 'false'
         uses: robinraju/release-downloader@v1
         with:
           repository: zhongfly/mpv-winbuild
@@ -51,7 +56,6 @@ jobs:
           fileName: "mpv-x86_64-20*-git-*.7z"
 
       - name: Get the filename of the mpv archive
-        if: steps.check.outputs.skip == 'false'
         id: mpv-filename
         run: |
           echo "fullname=$(ls | grep mpv)" >> $GITHUB_OUTPUT
@@ -59,23 +63,18 @@ jobs:
           echo "commit=$(ls | grep -oP '(?<=git-)[0-9a-fA-F]+')" >> $GITHUB_OUTPUT
 
       - name: Extract mpv archive
-        if: steps.check.outputs.skip == 'false'
         run: 7z x ${{ steps.mpv-filename.outputs.fullname }} -o${{ steps.mpv-filename.outputs.basename }}
 
       - name: Copy portable config to the extracted mpv folder
-        if: steps.check.outputs.skip == 'false'
         run: cp -r "portable_config" "${{ steps.mpv-filename.outputs.basename }}/portable_config"
 
       - name: Remove the original mpv archive
-        if: steps.check.outputs.skip == 'false'
         run: rm ${{ steps.mpv-filename.outputs.fullname }}
 
       - name: Compress mpv using 7zip
-        if: steps.check.outputs.skip == 'false'
         run: 7z a ${{ steps.mpv-filename.outputs.fullname }} ${{ steps.mpv-filename.outputs.basename }} -mx9
 
       - name: Create release
-        if: steps.check.outputs.skip == 'false'
         uses: ncipollo/release-action@v1
         with:
           name: mpv
