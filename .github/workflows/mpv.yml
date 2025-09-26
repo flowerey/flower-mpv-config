@@ -13,25 +13,24 @@ jobs:
   mpv:
     runs-on: ubuntu-latest
     steps:
-      - name: Check for new release
+      - name: Check for new mpv commit
         id: check
         run: |
           set -e
-          # Get latest upstream release tag
-          latest=$(curl -s https://api.github.com/repos/zhongfly/mpv-winbuild/releases/latest | jq -r .tag_name)
-          echo "latest=$latest" >> $GITHUB_OUTPUT
+          # Get latest commit hash from mpv-player/mpv master
+          latest_commit=$(curl -s https://api.github.com/repos/mpv-player/mpv/commits/master | jq -r .sha)
+          echo "latest_commit=$latest_commit" >> $GITHUB_OUTPUT
+          echo "Upstream mpv commit: $latest_commit"
 
-          # Get current tag from this repo (mpv release if it exists)
-          current=$(gh release view mpv --json tagName -q .tagName || echo "none")
+          # Get commit hash from your last release body
+          my_commit=$(gh release view mpv --json body -q .body | grep -oP '(?<=mpv-player/mpv@)[0-9a-fA-F]+' || echo "none")
+          echo "My last commit: $my_commit"
 
-          echo "Current tag: $current"
-          echo "Upstream latest: $latest"
-
-          if [ "$latest" = "$current" ]; then
-            echo "No new releases found."
+          if [ "$latest_commit" = "$my_commit" ]; then
+            echo "No new mpv commits found."
             echo "skip=true" >> $GITHUB_OUTPUT
           else
-            echo "New release detected."
+            echo "New mpv commit detected."
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
         env:
