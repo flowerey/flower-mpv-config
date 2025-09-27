@@ -64,9 +64,11 @@ jobs:
         if: steps.mpv-filename.outputs.fullname != ''
         run: |
           7z x ${{ steps.mpv-filename.outputs.fullname }}
-          # Rename extracted folder to "mpv"
-          extracted_folder=$(ls -d mpv* | head -n1)
-          mv "$extracted_folder" mpv
+          # Rename the extracted folder to "mpv"
+          extracted_folder="${{ steps.mpv-filename.outputs.basename }}"
+          if [ "$extracted_folder" != "mpv" ]; then
+            mv "$extracted_folder" mpv
+          fi
 
       - name: Copy portable config to the extracted mpv folder
         run: |
