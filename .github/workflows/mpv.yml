@@ -12,45 +12,33 @@ on:
       - "portable_config/**"
 
 jobs:
-  check:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    outputs:
-      skip: ${{ steps.check.outputs.skip }}
-    steps:
-      - name: Check for new mpv commit
-        id: check
-        run: |
-          set -e
-          latest_commit=$(curl -s https://api.github.com/repos/mpv-player/mpv/commits/master | jq -r .sha | cut -c1-7)
-          echo "latest_commit=$latest_commit" >> $GITHUB_OUTPUT
-          echo "Upstream mpv commit: $latest_commit"
-
-          last_release_commit=$(gh release view mpv --repo "${{ github.repository }}" --json body -q .body | grep -oP '(?<=mpv-player/mpv@)[0-9a-fA-F]+' || echo "none")
-          echo "Last release commit: $last_release_commit"
-
-          if [ "$latest_commit" = "$last_release_commit" ]; then
-            echo "No new mpv commits found."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "New mpv commit detected."
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
-
   build:
-    # Run build if push to portable_config OR new mpv commit OR workflow_dispatch/schedule
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.check.outputs.skip == 'false'
-    needs: check
     runs-on: ubuntu-latest
+    # Run always on push to portable_config, or on workflow_dispatch/schedule
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           sparse-checkout: portable_config
 
+      - name: Check if we need to download new mpv (only on schedule/workflow_dispatch)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        id: check
+        run: |
+          latest_commit=$(curl -s https://api.github.com/repos/mpv-player/mpv/commits/master | jq -r .sha | cut -c1-7)
+          echo "latest_commit=$latest_commit" >> $GITHUB_OUTPUT
+
+          last_release_commit=$(gh release view mpv --repo "${{ github.repository }}" --json body -q .body | grep -oP '(?<=mpv-player/mpv@)[0-9a-fA-F]+' || echo "none")
+          if [ "$latest_commit" = "$last_release_commit" ]; then
+            echo "skip_download=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip_download=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Download mpv
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' && (steps.check.outputs.skip_download != 'true')
         uses: robinraju/release-downloader@v1
         with:
           repository: zhongfly/mpv-winbuild
@@ -60,21 +48,29 @@ jobs:
       - name: Get the filename of the mpv archive
         id: mpv-filename
         run: |
-          echo "fullname=$(ls | grep mpv)" >> $GITHUB_OUTPUT
-          echo "basename=$(ls | grep mpv | xargs -I {} basename {} .7z)" >> $GITHUB_OUTPUT
-          echo "commit=$(ls | grep -oP '(?<=git-)[0-9a-fA-F]+')" >> $GITHUB_OUTPUT
+          if ls mpv* 1> /dev/null 2>&1; then
+            echo "fullname=$(ls | grep mpv)" >> $GITHUB_OUTPUT
+            echo "basename=$(ls | grep mpv | xargs -I {} basename {} .7z)" >> $GITHUB_OUTPUT
+            echo "commit=$(ls | grep -oP '(?<=git-)[0-9a-fA-F]+')" >> $GITHUB_OUTPUT
+          else
+            echo "fullname=" >> $GITHUB_OUTPUT
+            echo "basename=mpv" >> $GITHUB_OUTPUT
+            echo "commit=unknown" >> $GITHUB_OUTPUT
+          fi
 
       - name: Extract mpv archive
+        if: steps.mpv-filename.outputs.fullname != ''
         run: 7z x ${{ steps.mpv-filename.outputs.fullname }} -o${{ steps.mpv-filename.outputs.basename }}
 
       - name: Copy portable config to the extracted mpv folder
         run: cp -r "portable_config" "${{ steps.mpv-filename.outputs.basename }}/portable_config"
 
       - name: Remove the original mpv archive
+        if: steps.mpv-filename.outputs.fullname != ''
         run: rm ${{ steps.mpv-filename.outputs.fullname }}
 
       - name: Compress mpv using 7zip
-        run: 7z a ${{ steps.mpv-filename.outputs.fullname }} ${{ steps.mpv-filename.outputs.basename }} -mx9
+        run: 7z a mpv.7z ${{ steps.mpv-filename.outputs.basename }} -mx9
 
       - name: Compress portable_config separately
         run: 7z a portable_config.7z portable_config -mx9
@@ -83,7 +79,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           name: mpv
-          artifacts: ${{ steps.mpv-filename.outputs.fullname }}, portable_config.7z
+          artifacts: mpv.7z, portable_config.7z
           allowUpdates: true
           removeArtifacts: true
           replacesArtifacts: true
