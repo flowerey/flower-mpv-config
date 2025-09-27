@@ -37,7 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      # Download MPV if needed
+      # Download MPV only if needed
       - name: Download mpv
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' && steps.check.outputs.skip_build == 'false'
         uses: robinraju/release-downloader@v1
@@ -60,13 +60,11 @@ jobs:
             echo "commit=unchanged" >> $GITHUB_OUTPUT
           fi
 
-      - name: Extract mpv archive and rename folder
+      - name: Extract mpv archive into mpv folder
         if: steps.mpv-filename.outputs.fullname != ''
         run: |
-          7z x ${{ steps.mpv-filename.outputs.fullname }}
-          # Rename extracted folder (basename of archive) to mpv
-          extracted_folder="${{ steps.mpv-filename.outputs.basename }}"
-          mv "$extracted_folder" mpv
+          mkdir -p mpv
+          7z x ${{ steps.mpv-filename.outputs.fullname }} -o./mpv
 
       - name: Copy portable config to mpv folder
         run: |
