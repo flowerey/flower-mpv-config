@@ -60,13 +60,15 @@ jobs:
             echo "commit=unchanged" >> $GITHUB_OUTPUT
           fi
 
-      - name: Extract mpv archive
+      - name: Extract mpv archive and rename folder
         if: steps.mpv-filename.outputs.fullname != ''
         run: |
           7z x ${{ steps.mpv-filename.outputs.fullname }}
-          # Rename the extracted folder to "mpv"
-          extracted_folder="${{ steps.mpv-filename.outputs.basename }}"
-          if [ "$extracted_folder" != "mpv" ]; then
+          # Find the first top-level folder starting with "mpv"
+          extracted_folder=$(find . -maxdepth 1 -type d -name "mpv*" | head -n1 | sed 's|^\./||')
+          echo "Extracted folder: $extracted_folder"
+          # Rename to "mpv" if it exists and not already named mpv
+          if [ -n "$extracted_folder" ] && [ "$extracted_folder" != "mpv" ]; then
             mv "$extracted_folder" mpv
           fi
 
