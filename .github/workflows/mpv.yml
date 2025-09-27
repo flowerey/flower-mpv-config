@@ -13,7 +13,7 @@ on:
 
 jobs:
   check:
-    if: github.event_name != 'push'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       skip: ${{ steps.check.outputs.skip }}
@@ -41,7 +41,7 @@ jobs:
 
   build:
     needs: check
-    if: needs.check.outputs.skip == 'false'
+    if: github.event_name == 'push' || needs.check.outputs.skip == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -75,11 +75,14 @@ jobs:
       - name: Compress mpv using 7zip
         run: 7z a ${{ steps.mpv-filename.outputs.fullname }} ${{ steps.mpv-filename.outputs.basename }} -mx9
 
-      - name: Create release with mpv
+      - name: Compress portable_config separately
+        run: 7z a portable_config.7z portable_config -mx9
+
+      - name: Create release
         uses: ncipollo/release-action@v1
         with:
           name: mpv
-          artifacts: ${{ steps.mpv-filename.outputs.fullname }}
+          artifacts: ${{ steps.mpv-filename.outputs.fullname }}, portable_config.7z
           allowUpdates: true
           removeArtifacts: true
           replacesArtifacts: true
@@ -94,24 +97,3 @@ jobs:
             Based on: mpv-player/mpv@${{ steps.mpv-filename.outputs.commit }}
 
             Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-  portable-config:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Compress portable_config
-        run: 7z a portable_config.7z portable_config -mx9
-
-      - name: Upload portable_config to mpv release
-        uses: ncipollo/release-action@v1
-        with:
-          name: mpv
-          artifacts: portable_config.7z
-          allowUpdates: true
-          removeArtifacts: true
-          replacesArtifacts: true
-          makeLatest: false
-          tag: mpv
