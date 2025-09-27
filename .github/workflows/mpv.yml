@@ -40,8 +40,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
   build:
+    # Run build if push to portable_config OR new mpv commit OR workflow_dispatch/schedule
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.check.outputs.skip == 'false'
     needs: check
-    if: github.event_name == 'push' || needs.check.outputs.skip == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -92,7 +93,7 @@ jobs:
             Pre-configured portable MPV based on [zhongfly's build](https://github.com/zhongfly/mpv-winbuild) using
             flower's config.
 
-            This release is updated daily using [this workflow](https://github.com/${{ github.repository }}/blob/master/.github/workflows/mpv.yml)
+            This release is updated automatically using [this workflow](https://github.com/${{ github.repository }}/blob/master/.github/workflows/mpv.yml)
 
             Based on: mpv-player/mpv@${{ steps.mpv-filename.outputs.commit }}
 
