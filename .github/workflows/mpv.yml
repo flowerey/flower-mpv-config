@@ -54,7 +54,7 @@ jobs:
             echo "basename=$(ls | grep mpv | xargs -I {} basename {} .7z)" >> $GITHUB_OUTPUT
             echo "commit=$(ls | grep -oP '(?<=git-)[0-9a-fA-F]+')" >> $GITHUB_OUTPUT
           else
-            # If no new MPV downloaded, reuse previous release folder
+            # No new MPV downloaded, reuse existing folder name "mpv"
             echo "fullname=" >> $GITHUB_OUTPUT
             echo "basename=mpv" >> $GITHUB_OUTPUT
             echo "commit=unchanged" >> $GITHUB_OUTPUT
@@ -62,16 +62,20 @@ jobs:
 
       - name: Extract mpv archive
         if: steps.mpv-filename.outputs.fullname != ''
-        run: 7z x ${{ steps.mpv-filename.outputs.fullname }} -o${{ steps.mpv-filename.outputs.basename }}
+        run: |
+          7z x ${{ steps.mpv-filename.outputs.fullname }}
+          # Rename extracted folder to "mpv"
+          extracted_folder=$(ls -d mpv* | head -n1)
+          mv "$extracted_folder" mpv
 
       - name: Copy portable config to the extracted mpv folder
         run: |
-          mkdir -p "${{ steps.mpv-filename.outputs.basename }}/portable_config"
-          cp -r portable_config/* "${{ steps.mpv-filename.outputs.basename }}/portable_config/"
+          mkdir -p "mpv/portable_config"
+          cp -r portable_config/* "mpv/portable_config/"
 
       - name: Compress mpv using 7zip
         if: steps.mpv-filename.outputs.fullname != ''
-        run: 7z a mpv.7z ${{ steps.mpv-filename.outputs.basename }} -mx9
+        run: 7z a mpv.7z mpv -mx9
 
       - name: Compress portable_config separately
         run: 7z a portable_config.7z portable_config -mx9
