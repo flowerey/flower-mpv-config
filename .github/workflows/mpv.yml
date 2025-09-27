@@ -20,7 +20,7 @@ jobs:
         with:
           sparse-checkout: portable_config
 
-      # Only check upstream MPV on schedule or workflow_dispatch
+      # Check for new mpv commit on schedule or workflow_dispatch
       - name: Check for new mpv commit
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         id: check
@@ -37,7 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      # Download MPV only if needed
+      # Download MPV if needed
       - name: Download mpv
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' && steps.check.outputs.skip_build == 'false'
         uses: robinraju/release-downloader@v1
@@ -64,15 +64,11 @@ jobs:
         if: steps.mpv-filename.outputs.fullname != ''
         run: |
           7z x ${{ steps.mpv-filename.outputs.fullname }}
-          # Find the first top-level folder starting with "mpv"
-          extracted_folder=$(find . -maxdepth 1 -type d -name "mpv*" | head -n1 | sed 's|^\./||')
-          echo "Extracted folder: $extracted_folder"
-          # Rename to "mpv" if it exists and not already named mpv
-          if [ -n "$extracted_folder" ] && [ "$extracted_folder" != "mpv" ]; then
-            mv "$extracted_folder" mpv
-          fi
+          # Rename extracted folder (basename of archive) to mpv
+          extracted_folder="${{ steps.mpv-filename.outputs.basename }}"
+          mv "$extracted_folder" mpv
 
-      - name: Copy portable config to the extracted mpv folder
+      - name: Copy portable config to mpv folder
         run: |
           mkdir -p "mpv/portable_config"
           cp -r portable_config/* "mpv/portable_config/"
