@@ -16,9 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
-          sparse-checkout: portable_config
+          sparse-checkout: |
+            portable_config
+            portable_config_gui
 
       # Check for new mpv commit on schedule or workflow_dispatch
       - name: Check for new mpv commit
