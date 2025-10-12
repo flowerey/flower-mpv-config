@@ -78,11 +78,16 @@ jobs:
       - name: Compress portable_config separately
         run: 7z a portable_config.7z portable_config -mx9
 
+      - name: Compress portable_config_gui (renamed to portable_config inside archive)
+        run: |
+          7z a portable_config_gui.7z portable_config_gui -mx9
+          7z rn portable_config_gui.7z portable_config_gui portable_config
+
       - name: Create release
         uses: ncipollo/release-action@v1
         with:
           name: mpv
-          artifacts: mpv.7z, portable_config.7z
+          artifacts: mpv.7z, portable_config.7z, portable_config_gui.7z
           allowUpdates: true
           removeArtifacts: true
           replacesArtifacts: true
@@ -97,3 +102,9 @@ jobs:
             Based on: mpv-player/mpv@${{ steps.mpv-filename.outputs.commit }}
 
             Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+
+
+            Download mpv.7z for MPV with built-in config.
+            Download portable_config.7z for just the config (default).
+            Download portable_config.7z for just the config with ModernZ (osc replacement).
