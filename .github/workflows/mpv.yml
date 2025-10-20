@@ -109,4 +109,4 @@ jobs:
 
             Download mpv.7z for MPV with built-in config.
             Download portable_config.7z for just the config (default).
-            Download portable_config.7z for just the config with ModernZ (osc replacement).
+            Download portable_config_gui.7z for just the config with ModernZ (osc replacement).
