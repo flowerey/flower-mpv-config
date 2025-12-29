@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           sparse-checkout: |
             portable_config
@@ -107,6 +107,6 @@ jobs:
 
 
 
-            Download mpv.7z for MPV with built-in config.
+            Download mpv.7z for MPV with the config bundled.
             Download portable_config.7z for just the config (default).
             Download portable_config_gui.7z for just the config with ModernZ (osc replacement).
