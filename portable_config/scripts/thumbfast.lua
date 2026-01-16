@@ -241,21 +241,93 @@ local os_name = mp.get_property("platform") or get_os()
 
 local path_separator = os_name == "windows" and "\\" or "/"
 
-if options.socket == "" then
-    if os_name == "windows" then
-        options.socket = "thumbfast"
-    else
-        options.socket = "/tmp/thumbfast"
+
+local function fallback(...)
+    local args = { ... }
+
+    local function cond(var)
+        if type(var) == "table" then
+            return #var ~= 0
+        else
+            return var ~= nil
+        end
+    end
+
+    for _, arg in ipairs(args) do
+        local value = arg()
+        if cond(value) then
+            return value
+        end
     end
 end
 
-if options.thumbnail == "" then
-    if os_name == "windows" then
-        options.thumbnail = os.getenv("TEMP").."\\thumbfast.out"
+
+local function isdir(file)
+    local info = mp.utils.file_info(file)
+    if info == nil then
+        return false
     else
-        options.thumbnail = "/tmp/thumbfast.out"
+        return info.is_dir
     end
 end
+
+local function gettempdir()
+    local function get_existing_dir(dir)
+        if dir == nil then
+            return nil
+        else
+            if isdir(dir) then
+                return dir
+            else
+                return nil
+            end
+        end
+    end
+
+    local initial = fallback(function()
+        return get_existing_dir(os.getenv("TMPDIR"))
+    end, function()
+        return get_existing_dir(os.getenv("TEMP"))
+    end, function()
+        return get_existing_dir(os.getenv("TMP"))
+    end)
+
+    if os_name == "windows" then
+        return fallback(function()
+            return initial
+        end, function()
+            return mp.utils.getcwd()
+        end)
+    else
+        return fallback(function()
+            return initial
+        end, function()
+            return get_existing_dir(os.getenv("XDG_RUNTIME_DIR"))
+        end, function()
+            return get_existing_dir("/tmp")
+        end, function()
+            return mp.utils.getcwd()
+        end)
+    end
+end
+
+local function set_options_paths(opts_tbl)
+    local tempdir = gettempdir()
+
+    local function set(opt_name, filename)
+        if options[opt_name] == "" then
+            options[opt_name] = mp.utils.join_path(tempdir, filename)
+        else
+            return
+        end
+    end
+
+    for opt_name, filename in pairs(opts_tbl) do
+        set(opt_name, filename)
+    end
+end
+
+set_options_paths({ socket = "thumbfast", thumbnail = "thumbfast.out" })
 
 local unique = mp.utils.getpid()
 
