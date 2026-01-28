@@ -85,7 +85,7 @@ end
 local function FindOrPastTheEnd(string, pattern, start_at)
     local pos1, pos2 = string:find(pattern, start_at)
     return pos1 or #string + 1,
-           pos2 or #string + 1
+        pos2 or #string + 1
 end
 
 local function Split(list)
@@ -154,14 +154,14 @@ end
 
 local function validate_directory_mode()
     if o.directory_mode ~= "recursive" and o.directory_mode ~= "lazy"
-       and o.directory_mode ~= "ignore" then
+        and o.directory_mode ~= "ignore" then
         o.directory_mode = nil
     end
 end
 
 options.read_options(o, nil, function(list)
     split_option_exts(list.additional_video_exts, list.additional_audio_exts,
-                      list.additional_image_exts)
+        list.additional_image_exts)
     if list.videos or list.additional_video_exts or
         list.audio or list.additional_audio_exts or
         list.images or list.additional_image_exts then
@@ -212,7 +212,7 @@ local function alphanumsort(filenames)
 
     local tuples = {}
     for i, f in ipairs(filenames) do
-        tuples[i] = {f:lower():gsub("0*(%d+)%.?(%d*)", padnum), f}
+        tuples[i] = { f:lower():gsub("0*(%d+)%.?(%d*)", padnum), f }
     end
     table.sort(tuples, function(a, b)
         return a[1] == b[1] and #b[2] < #a[2] or a[1] < b[1]
@@ -279,7 +279,7 @@ local function scan_dir(path, current_file, dir_mode, separator, dir_depth, tota
     if dir_mode == "recursive" then
         for _, dir in ipairs(dirs) do
             scan_dir(prefix .. dir .. separator, current_file, dir_mode,
-                     separator, dir_depth + 1, total_files, extensions)
+                separator, dir_depth + 1, total_files, extensions)
         end
     else
         for i, dir in ipairs(dirs) do
@@ -343,9 +343,9 @@ local function find_and_add_entries()
 
     local files = {}
     scan_dir(autoloaded_dir, path,
-             o.directory_mode or mp.get_property("directory-mode", "lazy"),
-             mp.get_property_native("platform") == "windows" and "\\" or "/",
-             0, files, extensions)
+        o.directory_mode or mp.get_property("directory-mode", "lazy"),
+        mp.get_property_native("platform") == "windows" and "\\" or "/",
+        0, files, extensions)
 
     if next(files) == nil then
         msg.debug("no other files or directories in directory")
@@ -364,7 +364,7 @@ local function find_and_add_entries()
         msg.debug("current file not found in directory")
         return
     end
-    msg.trace("current file position in files: "..current)
+    msg.trace("current file position in files: " .. current)
 
     -- treat already existing playlist entries, independent of how they got added
     -- as if they got added by autoload
@@ -375,7 +375,7 @@ local function find_and_add_entries()
     -- stop initial file from being added twice
     added_entries[path] = true
 
-    local append = {[-1] = {}, [1] = {}}
+    local append = { [-1] = {}, [1] = {} }
     for direction = -1, 1, 2 do -- 2 iterations, with direction = -1 and +1
         for i = 1, MAX_ENTRIES do
             local pos = current + i * direction
@@ -388,11 +388,11 @@ local function find_and_add_entries()
             if not added_entries[file] then
                 if direction == -1 then
                     msg.verbose("Prepending " .. file)
-                    table.insert(append[-1], 1, {file, pl_current + i * direction + 1})
+                    table.insert(append[-1], 1, { file, pl_current + i * direction + 1 })
                 else
                     msg.verbose("Adding " .. file)
                     if pl_count > 1 then
-                        table.insert(append[1], {file, pl_current + i * direction - 1})
+                        table.insert(append[1], { file, pl_current + i * direction - 1 })
                     else
                         mp.commandv("loadfile", file, "append")
                     end

@@ -48,16 +48,16 @@ local similar_height = {}
 local valid_width = {}
 
 function add_tracks(start, finish)
-	for i=start + 1, finish do
-		local new_file = mp.get_property("playlist/"..tostring(i).."/filename")
+	for i = start + 1, finish do
+		local new_file = mp.get_property("playlist/" .. tostring(i) .. "/filename")
 		mp.commandv("video-add", new_file, "auto")
 	end
 end
 
 function check_aspect_ratio(index)
 	local a = filedims[index]
-	local b = filedims[index+1]
-	local m = a[0]+b[0]
+	local b = filedims[index + 1]
+	local m = a[0] + b[0]
 	local n
 	if a[1] > b[1] then
 		n = a[1]
@@ -75,7 +75,7 @@ function check_aspect_ratio(index)
 	else
 		return true
 	end
-	if m/n <= aspect_ratio then
+	if m / n <= aspect_ratio then
 		return true
 	else
 		return false
@@ -112,11 +112,11 @@ end
 
 function set_custom_title(last_index)
 	local first_page = mp.get_property("filename")
-	local last_page = mp.get_property("track-list/"..last_index.."/title")
+	local last_page = mp.get_property("track-list/" .. last_index .. "/title")
 	local ext = string.gsub(first_page, ".*%.", "")
 	first_page = string.gsub(first_page, "%..*", "")
 	last_page = string.gsub(last_page, "%..*", "")
-	local new_title = first_page.."-"..last_page.."."..ext
+	local new_title = first_page .. "-" .. last_page .. "." .. ext
 	mp.set_property("force-media-title", new_title)
 end
 
@@ -148,8 +148,8 @@ function create_modes()
 		end
 	else
 		local arg = "[vid1]"
-		for i=1, finish - index do
-			arg = arg.." [vid"..tostring(i+1).."]"
+		for i = 1, finish - index do
+			arg = arg .. " [vid" .. tostring(i + 1) .. "]"
 		end
 		set_lavfi_complex_continuous(arg, finish)
 		set_custom_title(finish - index)
@@ -158,7 +158,7 @@ end
 
 function store_file_props(start, finish)
 	local needs_dims = false
-	for i=start, finish do
+	for i = start, finish do
 		if valid_width[i] == nil then
 			needs_dims = true
 			break
@@ -167,15 +167,15 @@ function store_file_props(start, finish)
 	if not needs_dims then
 		return
 	end
-	for i=0, finish - start do
+	for i = 0, finish - start do
 		local dims = {}
 		local failures = 0
 		local width = nil
 		local height = nil
 		-- Don't loop forever here if we can't get this from the container.
 		while (width == nil or height == nil) and failures < 20 do
-			width = mp.get_property_number("track-list/"..tostring(i).."/demux-w")
-			height = mp.get_property_number("track-list/"..tostring(i).."/demux-h")
+			width = mp.get_property_number("track-list/" .. tostring(i) .. "/demux-w")
+			height = mp.get_property_number("track-list/" .. tostring(i) .. "/demux-h")
 			failures = failures + 1
 		end
 		if width == nil or height == nil then
@@ -185,15 +185,15 @@ function store_file_props(start, finish)
 		end
 		dims[0] = width
 		dims[1] = height
-		filedims[i+start] = dims
-		format[i+start] = mp.get_property("track-list/"..tostring(i).."/format-name")
+		filedims[i + start] = dims
+		format[i + start] = mp.get_property("track-list/" .. tostring(i) .. "/format-name")
 	end
-	for i=start, finish - 1 do
+	for i = start, finish - 1 do
 		valid_width[i] = check_aspect_ratio(i)
-		if filedims[i][1] ~= filedims[i+1][1] then
+		if filedims[i][1] ~= filedims[i + 1][1] then
 			lavfi_scale[i] = true
 		end
-		if math.abs(filedims[i][1] - filedims[i+1][1]) < opts.similar_height_threshold then
+		if math.abs(filedims[i][1] - filedims[i + 1][1]) < opts.similar_height_threshold then
 			similar_height[i] = true
 		else
 			similar_height[i] = false
@@ -202,7 +202,7 @@ function store_file_props(start, finish)
 end
 
 function log2(num)
-	return math.log(num)/math.log(2)
+	return math.log(num) / math.log(2)
 end
 
 function check_lavfi_complex(event)
@@ -229,10 +229,10 @@ function set_lavfi_complex_continuous(arg, finish)
 	local max_width = find_max_width(pages)
 	local has_gray = false
 	local has_color = false
-	for i=0, pages do
+	for i = 0, pages do
 		if has_gray and has_color then
 			break
-		elseif check_gray_format(format[index+i]) then
+		elseif check_gray_format(format[index + i]) then
 			has_gray = true
 		else
 			has_color = true
@@ -240,25 +240,32 @@ function set_lavfi_complex_continuous(arg, finish)
 	end
 	-- if there is a mix of color and gray pages, any gray pages must be converted
 	if has_gray and has_color then
-		for i=0, pages do
-			if check_gray_format(format[index+i]) then
+		for i = 0, pages do
+			if check_gray_format(format[index + i]) then
 				local split_format = string.gsub(split[i], "]", "_format]")
-				vstack = vstack..split[i].." format=argb "..split_format.."; "
+				vstack = vstack .. split[i] .. " format=argb " .. split_format .. "; "
 				split[i] = split_format
 			end
 		end
 	end
-	for i=0, pages do
-		if filedims[index+i][0] ~= max_width then
+	for i = 0, pages do
+		if filedims[index + i][0] ~= max_width then
 			local split_pad = string.gsub(split[i], "]", "_pad]")
-			vstack = vstack..split[i].." pad="..max_width..":"..filedims[index+i][1]..":"..tostring((max_width - filedims[index+i][0])/2)..":"..filedims[index+i][1].." "..split_pad.."; "
+			vstack = vstack ..
+			split[i] ..
+			" pad=" ..
+			max_width ..
+			":" ..
+			filedims[index + i][1] ..
+			":" .. tostring((max_width - filedims[index + i][0]) / 2) .. ":" ..
+			filedims[index + i][1] .. " " .. split_pad .. "; "
 			split[i] = split_pad
 		end
 	end
-	for i=0, pages do
-		vstack = vstack..split[i].." "
+	for i = 0, pages do
+		vstack = vstack .. split[i] .. " "
 	end
-	vstack = vstack.."vstack=inputs="..tostring(pages + 1).." [vo]"
+	vstack = vstack .. "vstack=inputs=" .. tostring(pages + 1) .. " [vo]"
 	mp.set_property("lavfi-complex", vstack)
 	mp.set_property_number("video-pan-y", 0)
 	if upwards then
@@ -282,20 +289,21 @@ function set_lavfi_complex_double()
 	local vid1 = "[vid1]"
 	local vid2 = "[vid2]"
 	if check_gray_format(format[index]) then
-		hstack = vid1.." format=argb [vid1_format]; "
+		hstack = vid1 .. " format=argb [vid1_format]; "
 		vid1 = "[vid1_format]"
 	elseif check_gray_format(format[index + 1]) then
-		hstack = vid2.." format=argb [vid2_format]; "
+		hstack = vid2 .. " format=argb [vid2_format]; "
 		vid2 = "[vid2_format]"
 	end
 	if lavfi_scale[index] then
-		hstack = hstack..vid2.." scale="..filedims[index][0].."x"..filedims[index][1]..":flags=lanczos [vid2_scale]; "
+		hstack = hstack .. vid2 ..
+		" scale=" .. filedims[index][0] .. "x" .. filedims[index][1] .. ":flags=lanczos [vid2_scale]; "
 		vid2 = "[vid2_scale]"
 	end
 	if opts.manga then
-		hstack = hstack..vid2.." "..vid1.. " hstack [vo]"
+		hstack = hstack .. vid2 .. " " .. vid1 .. " hstack [vo]"
 	else
-		hstack = hstack..vid1.." "..vid2.. " hstack [vo]"
+		hstack = hstack .. vid1 .. " " .. vid2 .. " hstack [vo]"
 	end
 	mp.set_property("lavfi-complex", hstack)
 end
@@ -311,7 +319,7 @@ function next_page()
 		else
 			new_index = index + 1
 		end
-		if new_index > len - 2  and double_displayed then
+		if new_index > len - 2 and double_displayed then
 			new_index = len - 2
 		elseif new_index > len - 2 then
 			new_index = len - 1
@@ -450,7 +458,7 @@ function set_properties()
 	if init_values.msg_level == "" then
 		mp.set_property("msg-level", "ffmpeg=error")
 	else
-		mp.set_property("msg-level", init_values.msg_level..",ffmpeg=error")
+		mp.set_property("msg-level", init_values.msg_level .. ",ffmpeg=error")
 	end
 end
 
@@ -507,7 +515,7 @@ end
 
 function remove_non_images()
 	local i = 0
-	local name = mp.get_property("playlist/"..tostring(i).."/filename")
+	local name = mp.get_property("playlist/" .. tostring(i) .. "/filename")
 	while name ~= nil do
 		local name_ext = string.sub(name, -5)
 		local match = false
@@ -525,14 +533,14 @@ function remove_non_images()
 		else
 			i = i + 1
 		end
-		name = mp.get_property("playlist/"..tostring(i).."/filename")
+		name = mp.get_property("playlist/" .. tostring(i) .. "/filename")
 	end
 end
 
 function find_max_width(pages)
 	local index = mp.get_property_number("playlist-pos")
 	local max_width = 0
-	for i=index, pages do
+	for i = index, pages do
 		if tonumber(filedims[i][0]) > tonumber(max_width) then
 			max_width = filedims[i][0]
 		end
@@ -543,7 +551,7 @@ end
 function str_split(str, delim)
 	local split = {}
 	local i = 0
-	for token in string.gmatch(str, "([^"..delim.."]+)") do
+	for token in string.gmatch(str, "([^" .. delim .. "]+)") do
 		split[i] = token
 		i = i + 1
 	end
@@ -607,13 +615,13 @@ function check_y_pos()
 	local index = mp.get_property_number("playlist-pos")
 	local len = mp.get_property_number("playlist-count")
 	local first_chunk = false
-	if index+opts.continuous_size < 0 then
+	if index + opts.continuous_size < 0 then
 		first_chunk = true
 	elseif index == 0 then
 		first_chunk = true
 	end
 	local last_chunk = false
-	if index+opts.continuous_size >= len - 1 then
+	if index + opts.continuous_size >= len - 1 then
 		last_chunk = true
 	end
 	local middle_index
@@ -792,7 +800,7 @@ function get_path()
 	if string.match(path, "^archive://") then
 		absolute_path = utils.join_path(cwd, string.match(path, "^archive://(.*)|"))
 		_, name = utils.split_path(absolute_path)
-		name = string.gsub(name,  "." .. string.gsub(name, ".*%.", ""), "")
+		name = string.gsub(name, "." .. string.gsub(name, ".*%.", ""), "")
 	else
 		absolute_path = utils.split_path(utils.join_path(cwd, path))
 		_, name = utils.split_path(string.sub(absolute_path, 1, -2))
@@ -845,7 +853,9 @@ end
 mp.register_event("file-loaded", init)
 mp.add_key_binding("y", "toggle-reader", toggle_reader)
 mp.add_key_binding("Ctrl+b", "open-bookmark", function()
-	select_bookmark("Open bookmark:", open_bookmark) end)
+	select_bookmark("Open bookmark:", open_bookmark)
+end)
 mp.add_key_binding("Ctrl+d", "delete-bookmark", function()
-	select_bookmark("DELETE bookmark:", delete_bookmark) end)
+	select_bookmark("DELETE bookmark:", delete_bookmark)
+end)
 require "mp.options".read_options(opts, "manga-reader")

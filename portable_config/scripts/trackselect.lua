@@ -122,7 +122,8 @@ end
 function track_layout_hash(tracklist)
     local t = {}
     for _, track in ipairs(tracklist) do
-        t[#t+1] = string.format("%s-%d-%s-%s-%s-%s", track.type, track.id, tostring(track.default), tostring(track.external), track.lang or "", track.external and "" or (track.title or ""))
+        t[#t + 1] = string.format("%s-%d-%s-%s-%s-%s", track.type, track.id, tostring(track.default),
+            tostring(track.external), track.lang or "", track.external and "" or (track.title or ""))
     end
     return table.concat(t, "\n")
 end
@@ -179,7 +180,8 @@ function trackselect()
                         local channels = false
                         local lang = false
                         if (options["preferred_" .. track.type .. "_channels"] or "") ~= "" and preferred_or_equals(track, options["preferred_" .. track.type .. "_lang"], "lang", "lang_score") then
-                            channels = preferred(track, options["preferred_" .. track.type .. "_channels"], "demux-channel-count", "channels_score")
+                            channels = preferred(track, options["preferred_" .. track.type .. "_channels"],
+                                "demux-channel-count", "channels_score")
                             pass = channels
                         end
                         if options["preferred_" .. track.type .. "_lang"] ~= "" then

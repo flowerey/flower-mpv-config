@@ -25,12 +25,12 @@ local function pause_timer_while_paused(_, pause)
 	if pause then timer:stop() else timer:resume() end
 end
 
--- This function runs on file-loaded, registers two callback functions, and 
+-- This function runs on file-loaded, registers two callback functions, and
 -- then they run delete-watch-later-config when appropriate.
 local function delete_watch_later(event)
 	local path = mp.get_property("path")
 
-	-- Temporarily disables save-position-on-quit while eof-reached is true, so 
+	-- Temporarily disables save-position-on-quit while eof-reached is true, so
 	-- state isn't saved at EOF when keep-open=yes
 	local function eof_reached(_, eof)
 		if not can_delete then
@@ -51,7 +51,7 @@ local function delete_watch_later(event)
 		if not can_delete then
 			can_delete = true
 		elseif event["reason"] == "eof" or event["reason"] == "stop" then
-			print("Deleting state (end-file "..event["reason"]..")")
+			print("Deleting state (end-file " .. event["reason"] .. ")")
 			mp.commandv("delete-watch-later-config", path)
 		end
 	end
@@ -71,4 +71,3 @@ mp.observe_property("pause", "bool", pause_timer_while_paused)
 mp.observe_property("pause", "bool", save_if_pause)
 mp.register_event("file-loaded", delete_watch_later)
 mp.register_event("file-loaded", save_on_file_loaded)
-
