@@ -79,11 +79,6 @@ jobs:
       - name: Compress portable_config separately
         run: 7z a portable_config.7z portable_config -mx9
 
-      - name: Compress portable_config_gui (renamed to portable_config inside archive)
-        run: |
-          7z a portable_config_gui.7z portable_config_gui -mx9
-          7z rn portable_config_gui.7z portable_config_gui portable_config
-
       - name: Create release
         uses: ncipollo/release-action@v1
         with:
