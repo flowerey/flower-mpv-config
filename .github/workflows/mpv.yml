@@ -20,7 +20,6 @@ jobs:
         with:
           sparse-checkout: |
             portable_config
-            portable_config_gui
 
       # Check for new mpv commit on schedule or workflow_dispatch
       - name: Check for new mpv commit
@@ -89,7 +88,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           name: mpv
-          artifacts: mpv.7z, portable_config.7z, portable_config_gui.7z
+          artifacts: mpv.7z, portable_config.7z
           allowUpdates: true
           removeArtifacts: true
           replacesArtifacts: true
@@ -109,4 +108,3 @@ jobs:
 
             Download mpv.7z for MPV with the config bundled.
             Download portable_config.7z for just the config (default).
-            Download portable_config_gui.7z for just the config with ModernZ (osc replacement).
