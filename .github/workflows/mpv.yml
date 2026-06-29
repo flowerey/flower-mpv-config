@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           sparse-checkout: |
             portable_config
@@ -80,15 +80,14 @@ jobs:
         run: 7z a portable_config.7z portable_config -mx9
 
       - name: Create release
-        uses: ncipollo/release-action@v1
+        uses: softprops/action-gh-release@v3
         with:
           name: mpv
-          artifacts: mpv.7z, portable_config.7z
-          allowUpdates: true
-          removeArtifacts: true
-          replacesArtifacts: true
-          makeLatest: true
-          tag: mpv
+          tag_name: mpv
+          make_latest: "true"
+          files: |
+            mpv.7z
+            portable_config.7z
           body: >
             Pre-configured portable MPV based on [zhongfly's build](https://github.com/zhongfly/mpv-winbuild) using
             flower's config.
