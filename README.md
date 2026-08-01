@@ -1,5 +1,7 @@
 # flower's MPV config
 
+[![Featured on FMHY](https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/available/fmhy/cozy.svg)](https://fmhy.net)
+
 Fork of [("now discountied")](https://github.com/Snaacky/thewiki/commit/6202ded8b9c5f1e446a4a821663d3604266439bb) thewiki.moe config.
 
 This fork has much more updated scripts, manga reader built-in (toggled with `y`), some other scripts, and even an OSC (modernZ)! See the `portable_config` directory.
