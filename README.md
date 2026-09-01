@@ -202,6 +202,8 @@ The `discord-rpc.lua` script shows what you're watching in Discord with AniList 
 
 ### Installing discord-rpc library
 
+**Windows:** Bundled in `libs/discord-rpc/` — auto-detected (x64/x86). No manual install needed.
+
 **Linux:**
 ```bash
 # Download from discord-rpc releases
@@ -209,12 +211,6 @@ wget https://github.com/discord/discord-rpc/releases/download/v3.4.0/discord-rpc
 unzip discord-rpc-linux.zip
 sudo cp discord-rpc/linux/linux-dynamic/lib/libdiscord-rpc.so /usr/local/lib/
 sudo ldconfig
-```
-
-**Windows:**
-```
-Download discord-rpc-win64.zip from releases.
-Copy discord-rpc.dll next to mpv.exe.
 ```
 
 **macOS:**
