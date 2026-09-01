@@ -93,14 +93,20 @@ local rpc_initialized = false
 
 local function load_discord_rpc()
     local mpv_dir = mp.get_property("mpv-home") or ""
+    local config_dir = mp.get_property("user-data-dir") or mp.get_property("mpv-home") or ""
 
     -- Platform-specific library search paths
     local paths = {}
     if jit.os == "Windows" then
+        -- Architecture detection: check pointer size
+        local is_64 = ffi.sizeof("void*") == 8
+        local arch_dll = is_64 and "discord-rpc-x64.dll" or "discord-rpc-x86.dll"
+
         paths = {
             "discord-rpc",
-            mpv_dir ~= "" and (mpv_dir .. "/discord-rpc.dll") or nil,
-            mpv_dir ~= "" and (mpv_dir .. "/libdiscord-rpc.dll") or nil,
+            config_dir .. "/libs/discord-rpc/" .. arch_dll,
+            mpv_dir .. "/discord-rpc.dll",
+            mpv_dir .. "/libdiscord-rpc.dll",
             "C:/msys64/mingw64/bin/libdiscord-rpc.dll",
             os.getenv("LOCALAPPDATA") and (os.getenv("LOCALAPPDATA") .. "/mpv/discord-rpc.dll") or nil,
         }
@@ -127,8 +133,8 @@ local function load_discord_rpc()
     end
 
     local hint = jit.os == "Windows"
-        and "Download from github.com/discord/discord-rpc/releases and place DLL next to mpv.exe"
-        or "Install to ~/.local/lib/ or /usr/local/lib/"
+        and "The DLL is bundled in libs/discord-rpc/ inside the config folder."
+        or "Install to ~/.local/lib/ or /usr/local/lib/."
     msg.error("Failed to load discord-rpc library. " .. hint)
     return false
 end
