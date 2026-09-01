@@ -4,6 +4,9 @@ local options = require 'mp.options'
 local o = { save_interval = 60 }
 options.read_options(o)
 
+local timer
+local can_delete = true
+
 local function save()
 	if mp.get_property_bool("resume-playback") then
 		mp.command("write-watch-later-config")
@@ -62,7 +65,6 @@ end
 
 mp.set_property("save-position-on-quit", "yes")
 
-can_delete = true
 mp.register_script_message("skip-delete-state", function() can_delete = false end)
 
 timer = mp.add_periodic_timer(o.save_interval, save)

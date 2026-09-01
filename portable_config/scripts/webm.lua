@@ -1987,10 +1987,11 @@ encode = function(region, startTime, endTime)
         })
       end
       if options.strict_filesize_constraint then
+        local strict_bitrate = video_bitrate or audio_bitrate
         local type = format.videoCodec ~= "" and "ovc" or "oac"
         append(command, {
-          "--" .. tostring(type) .. "opts-add=minrate=" .. tostring(bitrate) .. "k",
-          "--" .. tostring(type) .. "opts-add=maxrate=" .. tostring(bitrate) .. "k"
+          "--" .. tostring(type) .. "opts-add=minrate=" .. tostring(strict_bitrate) .. "k",
+          "--" .. tostring(type) .. "opts-add=maxrate=" .. tostring(strict_bitrate) .. "k"
         })
       end
     else

@@ -42,8 +42,8 @@
     See below for the full options list, don't change the defaults manually, use script opts.
 ]] --
 
-msg = require 'mp.msg'
-utils = require 'mp.utils'
+local msg = require 'mp.msg'
+local utils = require 'mp.utils'
 require 'mp.options'
 
 --options available through --script-opts=changerefresh-[option]=value
@@ -51,6 +51,9 @@ require 'mp.options'
 local options = {
     --the location of nircmd.exe, tries to use the system path by default
     nircmd = "nircmd",
+
+    --use xrandr on Linux instead of nircmd (auto-detected by default)
+    use_xrandr = "auto",
 
     --list of valid refresh rates, separated by semicolon, listed in ascending order
     --by adding a hyphen after a number you can set a custom display rate for that specific video rate:
@@ -210,11 +213,17 @@ end
 --this function exists because the current res information is required at different points for different commands and to find
 --the res the player must switch into and out of fullscreen. Doing so multiple times would be annoying, so
 --this function makes sure it will only happen once, no matter which command is sent
-function setCurrentRes()
+function setCurrentRes(callback)
     if options.detect_display_resolution and var.current_width == 0 then
-        var.current_width, var.current_height = getDisplayResolution()
+        getDisplayResolution(function(w, h)
+            var.current_width, var.current_height = w, h
+            if callback then callback() end
+        end)
     elseif var.current_width == 0 then
         var.current_width, var.current_height = options.original_width, options.original_height
+        if callback then callback() end
+    else
+        if callback then callback() end
     end
 end
 
@@ -225,83 +234,144 @@ function osdMessage(string)
     end
 end
 
---calls nircmd to change the display resolution and rate
-function changeRefresh(width, height, rate, display)
+--detect if running on Linux
+local function is_linux()
+    local f = io.popen("uname -s 2>/dev/null")
+    if f then
+        local os_name = f:read("*a"):gsub("%s+", "")
+        f:close()
+        return os_name == "Linux"
+    end
+    return false
+end
+
+local use_xrandr = nil
+
+local function should_use_xrandr()
+    if use_xrandr ~= nil then return use_xrandr end
+    if options.use_xrandr == "yes" then
+        use_xrandr = true
+    elseif options.use_xrandr == "no" then
+        use_xrandr = false
+    else
+        use_xrandr = is_linux()
+    end
+    return use_xrandr
+end
+
+--get xrandr output name for the current display
+local function get_xrandr_output()
+    local output = mp.get_property_native("display-names")
+    if output and #output > 0 then
+        return output[1]
+    end
+    return nil
+end
+
+--calls nircmd (Windows) or xrandr (Linux) to change the display resolution and rate
+function changeRefresh(width, height, rate, display, callback)
     rate = tostring(rate)
     width = tostring(width)
     height = tostring(height)
     display = tostring(display)
 
-    setCurrentRes()
+    setCurrentRes(function()
+        msg.info("changing display " .. display .. " to " .. width .. "x" .. height .. " " .. rate .. "Hz")
 
-    msg.verbose('calling nircmd with command: ' ..
-    options.nircmd ..
-    " setdisplay monitor:" .. display .. " " .. width .. " " .. height .. " " .. options.bdepth .. " " .. rate)
-
-    msg.info("changing display " .. display .. " to " .. width .. "x" .. height .. " " .. rate .. "Hz")
-
-    --pauses the video while the change occurs to avoid A/V desyncs
-    if
-        options.pause > 0 and not mp.get_property_bool("pause")
-        and not (tostring(var.current_height) == height and
-            tostring(var.current_width) == width and
-            tostring(math.floor(mp.get_property_number('display-fps'))) == rate
-        )
-    then
-        mp.set_property_bool("pause", true)
-        mp.add_timeout(options.pause, function()
-            mp.set_property_bool("pause", false)
-        end)
-    end
-
-    local process = mp.command_native({
-        name = 'subprocess',
-        playback_only = false,
-        args = {
-            options.nircmd,
-            "setdisplay",
-            "monitor:" .. display,
-            width,
-            height,
-            options.bdepth,
-            rate
-        }
-    })
-
-    if (process.status < 0) then
-        local error = process.error_string
-        msg.warn(utils.to_string(process))
-        msg.error('Error sending command')
-        if error == "init" then
-            msg.error('could not start nircmd - make sure you are using the right path')
+        --pauses the video while the change occurs to avoid A/V desyncs
+        if
+            options.pause > 0 and not mp.get_property_bool("pause")
+            and not (tostring(var.current_height) == height and
+                tostring(var.current_width) == width and
+                tostring(math.floor(mp.get_property_number('display-fps'))) == rate
+            )
+        then
+            mp.set_property_bool("pause", true)
+            mp.add_timeout(options.pause, function()
+                mp.set_property_bool("pause", false)
+            end)
         end
-    end
 
-    osdMessage("changing display " .. var.dnumber .. " to " .. width .. "x" .. height .. " " .. rate .. "Hz")
+        local process
+        if should_use_xrandr() then
+            local xrandr_output = get_xrandr_output()
+            if not xrandr_output then
+                msg.error("could not detect xrandr output name")
+                osdMessage("[change-refresh] could not detect display output")
+                if callback then callback() end
+                return
+            end
+            local mode = width .. "x" .. height .. rate
+            msg.verbose('calling xrandr: xrandr --output ' .. xrandr_output .. ' --mode ' .. mode)
+            process = mp.command_native({
+                name = 'subprocess',
+                playback_only = false,
+                args = {
+                    "xrandr",
+                    "--output", xrandr_output,
+                    "--mode", mode
+                }
+            })
+        else
+            msg.verbose('calling nircmd: ' .. options.nircmd ..
+                " setdisplay monitor:" .. display .. " " .. width .. " " .. height .. " " .. options.bdepth .. " " .. rate)
+            process = mp.command_native({
+                name = 'subprocess',
+                playback_only = false,
+                args = {
+                    options.nircmd,
+                    "setdisplay",
+                    "monitor:" .. display,
+                    width,
+                    height,
+                    options.bdepth,
+                    rate
+                }
+            })
+        end
 
-    --clears the memory for the display resolution
-    var.current_width, var.current_height = 0, 0
+        if (process.status < 0) then
+            local error = process.error_string
+            msg.warn(utils.to_string(process))
+            msg.error('Error sending command')
+            if error == "init" then
+                if should_use_xrandr() then
+                    msg.error('could not start xrandr - make sure it is installed')
+                else
+                    msg.error('could not start nircmd - make sure you are using the right path')
+                end
+            end
+        end
+
+        osdMessage("changing display " .. var.dnumber .. " to " .. width .. "x" .. height .. " " .. rate .. "Hz")
+
+        --clears the memory for the display resolution
+        var.current_width, var.current_height = 0, 0
+
+        if callback then callback() end
+    end)
 end
 
 --finds the display resolution by going into fullscreen and grabbing the resolution of the OSD
 --this is seemingly the easiest way to get the true screen resolution
 --if detect_screen_resolution is disabled this won't be required
-function getDisplayResolution()
+function getDisplayResolution(callback)
     local isFullscreen = mp.get_property_bool('fullscreen')
 
     mp.set_property_bool('fullscreen', true)
 
-    --requires a small delay for the osd to go to fullscreen
-    local time = mp.get_time()
-    while time + 0.1 > mp.get_time() do end
+    --use mp.add_timeout instead of busy-wait for the fullscreen delay
+    mp.add_timeout(0.1, function()
+        local width, height = mp.get_osd_size()
 
-    local width, height = mp.get_osd_size()
+        msg.verbose('current monitor resolution = ' .. width .. 'x' .. height)
 
-    msg.verbose('current monitor resolution = ' .. width .. 'x' .. height)
+        mp.set_property_bool("fullscreen", isFullscreen)
 
-    mp.set_property_bool("fullscreen", isFullscreen)
-
-    return width, height
+        if callback then
+            callback(width, height)
+        end
+    end)
 end
 
 --Finds the name of the display mpv is currently running on
@@ -332,27 +402,31 @@ function getDisplayDetails()
 end
 
 --chooses a width and height to switch the display to based on the resolution of the video
-function getModifiedWidthHeight(width, height)
+function getModifiedWidthHeight(width, height, callback)
     --if UHD adaptive is disabled then it doesn't matter what the video resolution is it'll just use the current resolution
     if (options.UHD_adaptive == false) then
-        setCurrentRes()
-        height = var.current_height
-        width = var.current_width
-        goto functionend
+        setCurrentRes(function()
+            height = var.current_height
+            width = var.current_width
+            msg.verbose("setting display to: " .. width .. "x" .. height)
+            callback(width, height)
+        end)
+        return
     end
     --sets the monitor to 2160p if an UHD video is played, otherwise set to the default
     if (height < options.UHD_threshold) then
-        setCurrentRes()
-        height = var.current_height
-        width = var.current_width
+        setCurrentRes(function()
+            height = var.current_height
+            width = var.current_width
+            msg.verbose("setting display to: " .. width .. "x" .. height)
+            callback(width, height)
+        end)
     else
         height = options.UHD_height
         width = options.UHD_width
+        msg.verbose("setting display to: " .. width .. "x" .. height)
+        callback(width, height)
     end
-
-    ::functionend::
-    msg.verbose("setting display to: " .. width .. "x" .. height)
-    return width, height
 end
 
 --picks which whitelisted rate to switch the monitor to
@@ -415,29 +489,39 @@ function matchVideo()
 
     --Floor is used because 23fps video has an actual framerate of ~23.9, this occurs across many video rates
     var.new_fps = math.floor(var.new_fps)
-    var.new_width, var.new_height = getModifiedWidthHeight(var.new_width, var.new_height)
 
-    --picks which whitelisted rate to switch the monitor to based on the video rate
-    var.new_fps = findValidRate(var.new_fps)
+    getModifiedWidthHeight(var.new_width, var.new_height, function(mod_width, mod_height)
+        var.new_width = mod_width
+        var.new_height = mod_height
 
-    --if beenReverted=true, then the current display settings may not be saved
-    if (var.beenReverted == true) then
-        setCurrentRes()
+        --picks which whitelisted rate to switch the monitor to based on the video rate
+        var.new_fps = findValidRate(var.new_fps)
 
-        --saves the actual resolution only if option set, otherwise uses the defaults
-        msg.verbose('saving original resolution: ' .. var.current_width .. 'x' .. var.current_height)
-        var.original_width, var.original_height = var.current_width, var.current_height
+        local function do_change()
+            --saves the current name and number for next time
+            var.dname = dname
+            var.dnumber = dnumber
 
-        var.original_fps = math.floor(mp.get_property_number('display-fps'))
-        msg.verbose('saving original fps: ' .. var.original_fps)
-    end
+            changeRefresh(var.new_width, var.new_height, var.new_fps, dnumber)
+            var.beenReverted = false
+        end
 
-    --saves the current name and number for next time
-    var.dname = dname
-    var.dnumber = dnumber
+        --if beenReverted=true, then the current display settings may not be saved
+        if (var.beenReverted == true) then
+            setCurrentRes(function()
+                --saves the actual resolution only if option set, otherwise uses the defaults
+                msg.verbose('saving original resolution: ' .. var.current_width .. 'x' .. var.current_height)
+                var.original_width, var.original_height = var.current_width, var.current_height
 
-    changeRefresh(var.new_width, var.new_height, var.new_fps, dnumber)
-    var.beenReverted = false
+                var.original_fps = math.floor(mp.get_property_number('display-fps'))
+                msg.verbose('saving original fps: ' .. var.original_fps)
+
+                do_change()
+            end)
+        else
+            do_change()
+        end
+    end)
 end
 
 --reverts the monitor to its original refresh rate
@@ -461,16 +545,18 @@ end
 
 --sets the current resolution and refresh as the default to use upon reversion
 function setDefault()
-    var.original_width, var.original_height = getDisplayResolution()
-    var.original_fps = math.floor(mp.get_property_number('display-fps'))
+    getDisplayResolution(function(width, height)
+        var.original_width, var.original_height = width, height
+        var.original_fps = math.floor(mp.get_property_number('display-fps'))
 
-    var.beenReverted = true
+        var.beenReverted = true
 
-    --logging change to OSD & the console
-    msg.info('set ' ..
-    var.original_width .. "x" .. var.original_height .. " " .. var.original_fps .. "Hz as defaut display rate")
-    osdMessage('Change-Refresh: set ' ..
-    var.original_width .. "x" .. var.original_height .. " " .. var.original_fps .. "Hz as defaut display rate")
+        --logging change to OSD & the console
+        msg.info('set ' ..
+        var.original_width .. "x" .. var.original_height .. " " .. var.original_fps .. "Hz as defaut display rate")
+        osdMessage('Change-Refresh: set ' ..
+        var.original_width .. "x" .. var.original_height .. " " .. var.original_fps .. "Hz as defaut display rate")
+    end)
 end
 
 --toggles between using estimated and specified fps

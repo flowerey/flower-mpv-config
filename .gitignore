@@ -1,0 +1,13 @@
+# mpv runtime data
+historybookmarks/
+watch_later/
+*.history
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Editor swap files
+*.swp
+*.swo
+*~

@@ -209,7 +209,7 @@ function check_lavfi_complex(event)
 	if event.file_error then
 		mp.set_property("lavfi-complex", "")
 		if opts.continuous then
-			opts.continous = false
+			opts.continuous = false
 			toggle_continuous_mode()
 			mp.osd_message("Error when trying to set continuous mode! Disabling!")
 		end
@@ -615,9 +615,7 @@ function check_y_pos()
 	local index = mp.get_property_number("playlist-pos")
 	local len = mp.get_property_number("playlist-count")
 	local first_chunk = false
-	if index + opts.continuous_size < 0 then
-		first_chunk = true
-	elseif index == 0 then
+	if index == 0 then
 		first_chunk = true
 	end
 	local last_chunk = false
