@@ -484,16 +484,22 @@ end
 local function extract_episode(filename)
     local name = strip_extension(filename)
 
-    -- S01E03 format (supports ranges S01E01-E03 and multi E01E02E03)
-    local season, ep = name:match("[Ss](%d+)[Ee](%d+)")
+    -- S01E03 / S01E01-E03 / S01E01E02E03 / S01.5E01 (half-season)
+    local season, ep = name:match("[Ss](%d+%.?%d*)[Ee](%d+)")
     if season and ep then return tonumber(ep), tonumber(season) end
 
-    -- EP01 / EP.01 / Ep 01
-    local ep_num = name:match("[Ee][Pp][%.%s]*(%d+)")
+    -- Separated tags: [S01][E01] or [S01] [E01]
+    local s_tag = name:match("%[S(%d+)%]")
+    local e_tag = name:match("%[E(%d+)%]")
+    if s_tag and e_tag then return tonumber(e_tag), tonumber(s_tag) end
+    if e_tag then return tonumber(e_tag), nil end
+
+    -- EP01 / EP.01 / Ep 01 / EP-01 / Epi01
+    local ep_num = name:match("[Ee][Pp][i]?[%s%.%-]*(%d+)")
     if ep_num then return tonumber(ep_num), nil end
 
     -- Episode 01 / Episode 1
-    ep_num = name:match("[Ee]pisode%s+(%d+)")
+    ep_num = name:match("[Ee]pisode[%s%.%-]+(%d+)")
     if ep_num then return tonumber(ep_num), nil end
 
     -- #01 hash-style episode marker
@@ -501,12 +507,12 @@ local function extract_episode(filename)
     if ep_num then return tonumber(ep_num), nil end
 
     -- Title - 01 (or Title - 01v2, Title - 01 (1080p), etc.)
-    ep_num = name:match("%s%-+%s*(%d+%.?%d*)[%svV%(%[%d].*$")
-    if ep_num then return tonumber(ep_num), nil end
-
-    -- Title - 01 (no trailing junk)
-    ep_num = name:match("%s%-+%s*(%d+%.?%d*)%s*$")
-    if ep_num then return tonumber(ep_num), nil end
+    -- Must come AFTER date check to avoid matching dates
+    local is_date = name:match("(%d%d%d%d)[%-%./](%d%d)[%-%./](%d%d)")
+    if not is_date then
+        ep_num = name:match("%s%-+%s*(%d+%.?%d*)")
+        if ep_num then return tonumber(ep_num), nil end
+    end
 
     -- Title [01]
     ep_num = name:match("%[(%d+%.?%d*)%]")
@@ -516,23 +522,52 @@ local function extract_episode(filename)
     ep_num = name:match("_(%d+)_")
     if ep_num then return tonumber(ep_num), nil end
 
-    -- Title 01 (bare number after dash)
-    ep_num = name:match("%-+%s*(%d+)")
+    -- Title 01 (bare number after dash) — also date-protected
+    if not is_date then
+        ep_num = name:match("%-+%s*(%d+)")
+        if ep_num then return tonumber(ep_num), nil end
+    end
+
+    -- SP01 / SP.01 (special episodes with number)
+    ep_num = name:match("[Ss][Pp][%.%s%-]*(%d+)")
     if ep_num then return tonumber(ep_num), nil end
 
-    -- Special markers: OVA, OAD, ONA, Special, SP → episode 0
+    -- EX01 / EX.01 (extra episodes)
+    ep_num = name:match("[Ee][Xx][%.%s%-]*(%d+)")
+    if ep_num then return tonumber(ep_num), nil end
+
+    -- Chapter 01
+    ep_num = name:match("[Cc]hapter[%s%.%-]+(%d+)")
+    if ep_num then return tonumber(ep_num), nil end
+
+    -- Cour 1 - 01 (cour is like a half-season block)
+    ep_num = name:match("[Cc]our[%s%.%-]+%d+[%s%.%-]+(%d+)")
+    if ep_num then return tonumber(ep_num), nil end
+
+    -- NCOP / NCED (non-credit open/end) → episode 0
+    if name:match("[Nn][Cc][Oo][Pp]") or name:match("[Nn][Cc][Ee][Dd]") then
+        return 0, nil
+    end
+
+    -- OVA / OAD / ONA / Special / SP (without number) → episode 0
     if name:match("[Oo][Vv][Aa]") or name:match("[Oo][Aa][Dd]") or
        name:match("[Oo][Nn][Aa]") or name:match("[Ss]pecial") or
        name:match("[Ss][Pp]%d") then
         return 0, nil
     end
 
+    -- End / Final / Last / Recap / Preview → episode 0
+    if name:match("[Ee]nd%s*$") or name:match("[Ff]inal%s*$") or
+       name:match("[Ll]ast%s*$") or name:match("[Rr]ecap%s*$") or
+       name:match("[Pp]review%s*$") then
+        return 0, nil
+    end
+
     -- Part 1 / Part I → episode = part number
-    local part = name:match("[Pp]art%s+(%d+)")
+    local part = name:match("[Pp]art[%s%.%-]+(%d+)")
     if part then return tonumber(part), nil end
-    local roman = name:match("[Pp]art%s+([IVX]+)")
+    local roman = name:match("[Pp]art[%s%.%-]+([IVX]+)")
     if roman then
-        -- Simple additive roman numerals (I=1..XX=20, good enough for Parts)
         local vals = { I=1, V=5, X=10 }
         local n = 0
         for ch in roman:upper():gmatch(".") do n = n + (vals[ch] or 0) end
@@ -568,13 +603,21 @@ local function extract_title(filename)
         name = name:gsub("%.", " ")
     end
 
-    -- Remove S01E03 and everything after
-    name = name:gsub("[Ss]%d+[Ee]%d+.*$", "")
+    -- Remove S01E03 and everything after (also handles S01.5E01 half-season)
+    name = name:gsub("[Ss]%d+%.?%d*[Ee]%d+.*$", "")
+    -- Also handle when dots were already converted: S01 5E01
+    name = name:gsub("[Ss]%d+%s*%d*[Ee]%d+.*$", "")
+
+    -- Remove separated S/E tags: [S01][E01] or [S01] [E01] or [E01]
+    name = name:gsub("%[S%d+%]", "")
+    name = name:gsub("%[E%d+%]", "")
+    name = name:gsub("%s+", " ")
 
     -- Remove episode markers
     name = name:gsub("%s%-+%s*%d+.*$", "")
     name = name:gsub("%s*%[%d+%.?%d*%].*$", "")
     name = name:gsub("[Ee][Pp][i]?[%s%.%-]*%d+.*$", "")
+    name = name:gsub("[Ee]pisode[%s%.%-]*%d+.*$", "")
     name = name:gsub("#%d+.*$", "")
     -- Underscore episode markers: _01_, _02_
     name = name:gsub("_%d+_.-$", " ")
@@ -589,13 +632,25 @@ local function extract_title(filename)
     name = name:gsub("[Oo][Aa][Dd].*$", "")
     name = name:gsub("[Oo][Nn][Aa].*$", "")
     name = name:gsub("[Ss]pecial.*$", "")
-    name = name:gsub("[Ss][Pp]%d.*$", "")
+    name = name:gsub("[Ss][Pp][%.%s%-]*%d+.*$", "")
+    name = name:gsub("[Nn][Cc][Oo][Pp].*$", "")
+    name = name:gsub("[Nn][Cc][Ee][Dd].*$", "")
+    name = name:gsub("[Ee][Xx][%.%s%-]*%d+.*$", "")
+    name = name:gsub("[Cc]hapter[%s%.%-]+%d+.*$", "")
+    name = name:gsub("[Cc]our[%s%.%-]+%d+[%s%.%-]+%d+.*$", "")
+    name = name:gsub("[Cc]our[%s%.%-]+%d+.*$", "")
+    name = name:gsub("[Ee]nd%s*$", "")
+    name = name:gsub("[Ff]inal%s*$", "")
+    name = name:gsub("[Ll]ast%s*$", "")
+    name = name:gsub("[Rr]ecap%s*$", "")
+    name = name:gsub("[Pp]review%s*$", "")
 
     -- Remove Part markers
     name = name:gsub("[Pp]art%s+[IVX%d]+.*$", "")
 
-    -- Remove version tags: v2, v3
+    -- Remove version tags: v2, v3 (with or without brackets)
     name = name:gsub("%s+v%d+.*$", "")
+    name = name:gsub("%s*%[v%d+%].*$", "")
 
     -- Remove date markers: 2023-01-15
     name = name:gsub("%s*%d%d%d%d[%-%./]%d%d[%-%./]%d%d.*$", "")
@@ -607,13 +662,15 @@ local function extract_title(filename)
         "%[x264%]", "%[x265%]", "%[HEVC%]", "%[AV1%]",
         "%[FLAC%]", "%[AAC%]", "%[OPUS%]", "%[5%.1%]", "%[7%.1%]",
         "%[10%-bit%]", "%[8%-bit%]", "%[HDR%]", "%[DV%]",
-        "%[%w+%.%w+%]$", "%[%d+%]",
+        "%[%w+%.?%w+%]$", -- CRC hashes [ABCD1234] or [AB1234CD]
+        "%[%d+%]",         -- lone bracket numbers
     }
     for _, p in ipairs(tag_patterns) do name = name:gsub(p, "") end
 
     -- Remove trailing year
     name = name:gsub("%s*%(%d%d%d%d%)%s*$", "")
     name = name:gsub("%s*%[%d%d%d%d%]%s*$", "")
+    name = name:gsub("%s*%d%d%d%d%s*$", "")  -- bare year
 
     -- Normalize
     name = name:gsub("^%s*%-+%s*", "")
@@ -621,7 +678,9 @@ local function extract_title(filename)
     name = name:gsub("_", " ")
     name = name:gsub("%s+", " ")
     name = name:gsub("^%s+", ""):gsub("%s+$", "")
-    name = name:gsub("%.$", "")  -- trailing dot from dotted filename cleanup
+    name = name:gsub("%.$", "")
+    name = name:gsub("%-$", "")
+    name = name:gsub("%s*[%.,:]+$", "")
 
     return name
 end
