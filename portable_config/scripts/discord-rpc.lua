@@ -92,29 +92,44 @@ local discordRPClib
 local rpc_initialized = false
 
 local function load_discord_rpc()
-    -- Try multiple locations for the discord-rpc library
-    local paths = {
-        "discord-rpc",                                          -- system default
-        os.getenv("HOME") .. "/.local/lib/libdiscord-rpc.so",  -- user local
-        "/usr/local/lib/libdiscord-rpc.so",                    -- system local
-        "/usr/lib/libdiscord-rpc.so",                          -- system lib
-    }
-    -- Also try next to mpv binary
     local mpv_dir = mp.get_property("mpv-home") or ""
-    if mpv_dir ~= "" then
-        table.insert(paths, mpv_dir .. "/libdiscord-rpc.so")
+
+    -- Platform-specific library search paths
+    local paths = {}
+    if jit.os == "Windows" then
+        paths = {
+            "discord-rpc",
+            mpv_dir ~= "" and (mpv_dir .. "/discord-rpc.dll") or nil,
+            mpv_dir ~= "" and (mpv_dir .. "/libdiscord-rpc.dll") or nil,
+            "C:/msys64/mingw64/bin/libdiscord-rpc.dll",
+            os.getenv("LOCALAPPDATA") and (os.getenv("LOCALAPPDATA") .. "/mpv/discord-rpc.dll") or nil,
+        }
+    else
+        paths = {
+            "discord-rpc",
+            os.getenv("HOME") .. "/.local/lib/libdiscord-rpc.so",
+            "/usr/local/lib/libdiscord-rpc.so",
+            "/usr/lib/libdiscord-rpc.so",
+            mpv_dir ~= "" and (mpv_dir .. "/libdiscord-rpc.so") or nil,
+            mpv_dir ~= "" and (mpv_dir .. "/discord-rpc.so") or nil,
+        }
     end
 
     for _, path in ipairs(paths) do
-        local ok, lib = pcall(ffi.load, path)
-        if ok then
-            discordRPClib = lib
-            msg.info("Loaded discord-rpc from: " .. path)
-            return true
+        if path then
+            local ok, lib = pcall(ffi.load, path)
+            if ok then
+                discordRPClib = lib
+                msg.info("Loaded discord-rpc from: " .. path)
+                return true
+            end
         end
     end
 
-    msg.error("Failed to load discord-rpc library. Install it to ~/.local/lib/ or /usr/local/lib/")
+    local hint = jit.os == "Windows"
+        and "Download from github.com/discord/discord-rpc/releases and place DLL next to mpv.exe"
+        or "Install to ~/.local/lib/ or /usr/local/lib/"
+    msg.error("Failed to load discord-rpc library. " .. hint)
     return false
 end
 
@@ -230,9 +245,44 @@ local function rate_limit()
 end
 
 local function api_get(url, post_body)
-    local args = { "curl", "-s", "-m", "10" }
+    -- Detect HTTP client: curl (Linux/macOS), curl.exe (Windows 10+), or PowerShell fallback
+    local curl_cmd = "curl"
+    if jit.os == "Windows" then
+        -- On Windows, 'curl' might alias to PowerShell's curl alias; use curl.exe
+        local test = mp.command_native({
+            name = "subprocess", capture_stdout = true, playback_only = false,
+            args = { "curl.exe", "--version" }
+        })
+        if test.status == 0 then
+            curl_cmd = "curl.exe"
+        else
+            -- PowerShell fallback for HTTP requests
+            local ps_args = {
+                "powershell", "-NoProfile", "-Command",
+                string.format(
+                    "[System.Net.ServicePointManager]::SecurityProtocol=[System.Net.SecurityProtocolType]::Tls12; " ..
+                    "$r=Invoke-WebRequest -Uri '%s' -UseBasicParsing -TimeoutSec 10%s; " ..
+                    "$r.Content",
+                    url,
+                    post_body and (" -Method POST -ContentType 'application/json' -Body '" .. post_body:gsub("'", "''") .. "'") or ""
+                )
+            }
+            local result = mp.command_native({
+                name = "subprocess", capture_stdout = true, playback_only = false,
+                args = ps_args
+            })
+            if result.status ~= 0 or not result.stdout or result.stdout == "" then
+                msg.warn("PowerShell request failed")
+                return nil
+            end
+            local json = utils.parse_json(result.stdout)
+            return json
+        end
+    end
+
+    local args = { curl_cmd, "-s", "-m", "10" }
     if post_body then
-        args = { "curl", "-s", "-m", "10", "-X", "POST",
+        args = { curl_cmd, "-s", "-m", "10", "-X", "POST",
                  "-H", "Content-Type: application/json",
                  "-H", "Accept: application/json",
                  "-d", post_body, url }
@@ -427,133 +477,151 @@ end
 -- Filename parser (extract anime title + episode number)
 -- ============================================================
 
-local function remove_tags(s)
-    -- Remove group tags: [Group], 【Group】
-    s = s:gsub("^%s*%[.-%]%s*", "")
-    s = s:gsub("^%s*【.-%】%s*", "")
-    -- Remove leading/trailing whitespace and common separators
-    s = s:gsub("^%s*%-+%s*", "")
-    s = s:gsub("%s*%-+%s*$", "")
-    return s
-end
-
-local function clean_title(s)
-    -- Remove quality/technical tags
-    local patterns = {
-        "%[%d+p%]", "%[%d+x%d+%]", "%[BD%]", "%[BDRip%]", "%[WEBRip%]",
-        "%[WEB%DL%]", "%[HDRip%]", "%[DVDRip%]", "%[Blu%-ray%]",
-        "%[x264%]", "%[x265%]", "%[HEVC%]", "%[AV1%]",
-        "%[FLAC%]", "%[AAC%]", "%[OPUS%]", "%[5%.1%]", "%[7%.1%]",
-        "%[10%-bit%]", "%[8%-bit%]", "%[HDR%]", "%[DV%]",
-        "%[%w+%.%w+%]$", -- CRC hashes like [ABCD1234]
-    }
-    for _, p in ipairs(patterns) do
-        s = s:gsub(p, "")
-    end
-    -- Remove trailing year
-    s = s:gsub("%s*%(%d%d%d%d%)%s*$", "")
-    s = s:gsub("%s*%[%d%d%d%d%]%s*$", "")
-    -- Trim
-    s = s:gsub("^%s+", ""):gsub("%s+$", "")
-    return s
+local function strip_extension(name)
+    return name:gsub("%.[^%.]+$", "")
 end
 
 local function extract_episode(filename)
-    -- Remove extension
-    local name = filename:gsub("%.[^%.]+$", "")
+    local name = strip_extension(filename)
 
-    -- Try S01E03 format first
+    -- S01E03 format (supports ranges S01E01-E03 and multi E01E02E03)
     local season, ep = name:match("[Ss](%d+)[Ee](%d+)")
-    if season and ep then
-        return tonumber(ep), tonumber(season)
-    end
+    if season and ep then return tonumber(ep), tonumber(season) end
 
-    -- Try "Title - 01" or "Title - 01 (stuff)"
-    local ep_num = name:match("%s%-+%s*(%d+%.?%d*)[%s%(%[].*$")
-    if ep_num then
-        return tonumber(ep_num), nil
-    end
+    -- EP01 / EP.01 / Ep 01
+    local ep_num = name:match("[Ee][Pp][%.%s]*(%d+)")
+    if ep_num then return tonumber(ep_num), nil end
 
-    -- Try "Title [01]" or "Title [01] stuff"
+    -- Episode 01 / Episode 1
+    ep_num = name:match("[Ee]pisode%s+(%d+)")
+    if ep_num then return tonumber(ep_num), nil end
+
+    -- #01 hash-style episode marker
+    ep_num = name:match("#(%d+)")
+    if ep_num then return tonumber(ep_num), nil end
+
+    -- Title - 01 (or Title - 01v2, Title - 01 (1080p), etc.)
+    ep_num = name:match("%s%-+%s*(%d+%.?%d*)[%svV%(%[%d].*$")
+    if ep_num then return tonumber(ep_num), nil end
+
+    -- Title - 01 (no trailing junk)
+    ep_num = name:match("%s%-+%s*(%d+%.?%d*)%s*$")
+    if ep_num then return tonumber(ep_num), nil end
+
+    -- Title [01]
     ep_num = name:match("%[(%d+%.?%d*)%]")
-    if ep_num then
-        return tonumber(ep_num), nil
-    end
+    if ep_num then return tonumber(ep_num), nil end
 
-    -- Try "Title EP01" or "Title Episode 01"
-    ep_num = name:match("[Ee]p(?:isode)?%s*(%d+)")
-    if ep_num then
-        return tonumber(ep_num), nil
-    end
+    -- Underscore episode markers: _01_, _01 at end
+    ep_num = name:match("_(%d+)_")
+    if ep_num then return tonumber(ep_num), nil end
 
-    -- Try "Title 01" (last resort — find numbers after dash)
+    -- Title 01 (bare number after dash)
     ep_num = name:match("%-+%s*(%d+)")
-    if ep_num then
-        return tonumber(ep_num), nil
+    if ep_num then return tonumber(ep_num), nil end
+
+    -- Special markers: OVA, OAD, ONA, Special, SP → episode 0
+    if name:match("[Oo][Vv][Aa]") or name:match("[Oo][Aa][Dd]") or
+       name:match("[Oo][Nn][Aa]") or name:match("[Ss]pecial") or
+       name:match("[Ss][Pp]%d") then
+        return 0, nil
+    end
+
+    -- Part 1 / Part I → episode = part number
+    local part = name:match("[Pp]art%s+(%d+)")
+    if part then return tonumber(part), nil end
+    local roman = name:match("[Pp]art%s+([IVX]+)")
+    if roman then
+        -- Simple additive roman numerals (I=1..XX=20, good enough for Parts)
+        local vals = { I=1, V=5, X=10 }
+        local n = 0
+        for ch in roman:upper():gmatch(".") do n = n + (vals[ch] or 0) end
+        return n, nil
     end
 
     return nil, nil
 end
 
 local function extract_title(filename)
-    local name = filename:gsub("%.[^%.]+$", "")
+    local name = strip_extension(filename)
 
-    -- Remove group tags: [Group], 【Group】
-    name = name:gsub("^%s*%[.-%]%s*", "")
-    name = name:gsub("^%s*【.-%】%s*", "")
+    -- Remove leading group tags: [Group] or 【Group】 (multiple)
+    while name:match("^%s*%[.-%]%s*") do name = name:gsub("^%s*%[.-%]%s*", "") end
+    while name:match("^%s*【.-%】%s*") do name = name:gsub("^%s*【.-%】%s*", "") end
 
-    -- Remove S01E03 format
-    name = name:gsub("[Ss]%d+[Ee]%d+.*$", "")
-
-    -- For dotted filenames like "Kimi.ni.Todoke.From.Me.to.You.S01E01.1080p..."
-    -- Detect: if name has lots of dots and no spaces, treat dots as separators first
+    -- Dotted scene-release names: cut at first quality/codec marker, convert dots
     local dot_count = 0
     for _ in name:gmatch("%.") do dot_count = dot_count + 1 end
     if dot_count >= 3 then
-        -- Check if this looks like a dotted release name (technical tags after title)
-        -- Find where quality markers start and cut there
-        local quality_pos = name:find("%.[%d]+[Pp]")  -- .1080p
-        if not quality_pos then quality_pos = name:find("%.[Bb][Dd]") end  -- .Blu-ray
-        if not quality_pos then quality_pos = name:find("%.[Ww][Ee][Bb]") end  -- .WEB
-        if not quality_pos then quality_pos = name:find("%.[Xx]26") end  -- .x264
-        if not quality_pos then quality_pos = name:find("%.[Hh][Ee][Vv][Cc]") end  -- .HEVC
-        if not quality_pos then quality_pos = name:find("%.[Aa][Vv]1") end  -- .AV1
-        if not quality_pos then quality_pos = name:find("%.[Oo]pus") end  -- .Opus
-        if quality_pos then
-            name = name:sub(1, quality_pos - 1)
+        local markers = {
+            "%.%d+[Pp]", "%.[Bb][Dd]%-?[Rr]ip", "%.[Bb][Dd]",
+            "%.[Ww][Ee][Bb]%-?[Rr]ip", "%.[Ww][Ee][Bb]%-?[Dd][Ll]",
+            "%.[Hh][Dd][Rr]%-?[Ii]p", "%.[Dd][Vv][Dd]%-?[Rr]ip",
+            "%.[Xx]26[45]", "%.[Hh][Ee][Vv][Cc]", "%.[Aa][Vv]1",
+            "%.[Oo]pus", "%.[Aa][Aa][Cc]", "%.[Ff][Ll][Aa][Cc]",
+            "%.[Ss]ubs[Pp]lease", "%.[Ee]rai", "%.[Hh]orrible",
+        }
+        for _, marker in ipairs(markers) do
+            local pos = name:find(marker)
+            if pos and pos > 2 then name = name:sub(1, pos - 1); break end
         end
-        -- Convert dots to spaces
         name = name:gsub("%.", " ")
     end
 
-    -- Remove season/episode markers
+    -- Remove S01E03 and everything after
+    name = name:gsub("[Ss]%d+[Ee]%d+.*$", "")
+
+    -- Remove episode markers
     name = name:gsub("%s%-+%s*%d+.*$", "")
     name = name:gsub("%s*%[%d+%.?%d*%].*$", "")
-    name = name:gsub("[Ee]p(?:isode)?%s*%d+.*$", "")
+    name = name:gsub("[Ee][Pp][i]?[%s%.%-]*%d+.*$", "")
+    name = name:gsub("#%d+.*$", "")
+    -- Underscore episode markers: _01_, _02_
+    name = name:gsub("_%d+_.-$", " ")
+
+    -- Remove season markers
     name = name:gsub("[Ss]eason%s*%d+.*$", "")
-    name = name:gsub("[Ss]%d+.*$", "")
+    name = name:gsub("[Ss]%d+%s*$", "")
+    name = name:gsub("[Ss]%d+%s*%-", "-")
+
+    -- Remove special markers
+    name = name:gsub("[Oo][Vv][Aa].*$", "")
+    name = name:gsub("[Oo][Aa][Dd].*$", "")
+    name = name:gsub("[Oo][Nn][Aa].*$", "")
+    name = name:gsub("[Ss]pecial.*$", "")
+    name = name:gsub("[Ss][Pp]%d.*$", "")
+
+    -- Remove Part markers
+    name = name:gsub("[Pp]art%s+[IVX%d]+.*$", "")
+
+    -- Remove version tags: v2, v3
+    name = name:gsub("%s+v%d+.*$", "")
+
+    -- Remove date markers: 2023-01-15
+    name = name:gsub("%s*%d%d%d%d[%-%./]%d%d[%-%./]%d%d.*$", "")
 
     -- Remove quality/technical tags (bracketed)
-    local patterns = {
+    local tag_patterns = {
         "%[%d+p%]", "%[%d+x%d+%]", "%[BD%]", "%[BDRip%]", "%[WEBRip%]",
         "%[WEB%DL%]", "%[HDRip%]", "%[DVDRip%]", "%[Blu%-ray%]",
         "%[x264%]", "%[x265%]", "%[HEVC%]", "%[AV1%]",
         "%[FLAC%]", "%[AAC%]", "%[OPUS%]", "%[5%.1%]", "%[7%.1%]",
         "%[10%-bit%]", "%[8%-bit%]", "%[HDR%]", "%[DV%]",
-        "%[%w+%.%w+%]$", -- CRC hashes like [ABCD1234]
+        "%[%w+%.%w+%]$", "%[%d+%]",
     }
-    for _, p in ipairs(patterns) do
-        name = name:gsub(p, "")
-    end
+    for _, p in ipairs(tag_patterns) do name = name:gsub(p, "") end
 
     -- Remove trailing year
     name = name:gsub("%s*%(%d%d%d%d%)%s*$", "")
     name = name:gsub("%s*%[%d%d%d%d%]%s*$", "")
 
     -- Normalize
+    name = name:gsub("^%s*%-+%s*", "")
+    name = name:gsub("%s*%-+%s*$", "")
     name = name:gsub("_", " ")
     name = name:gsub("%s+", " ")
     name = name:gsub("^%s+", ""):gsub("%s+$", "")
+    name = name:gsub("%.$", "")  -- trailing dot from dotted filename cleanup
 
     return name
 end
