@@ -63,3 +63,5 @@ local function ab_loop()
 end
 
 mp.add_key_binding("l", "ab-loop", ab_loop)
+-- Also expose the action as a script message, since input.conf may override the key.
+mp.register_script_message("ab-loop", ab_loop)

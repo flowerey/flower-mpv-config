@@ -180,27 +180,24 @@ function updateTable()
             --tests for nil values caused by missing rates on either side of hyphens
             if originalRate == nil and newRate == nil then
                 msg.debug('-no rates found, ignoring')
-                goto loopend
-            end
-
-            if originalRate == nil then
+            elseif originalRate == nil then
                 msg.warn("missing rate before hyphen in whitelist, ignoring option")
-                goto loopend
+            else
+                if newRate == nil then
+                    msg.warn("missing rate after hyphen in whitelist for option: " .. rate)
+                    msg.warn("ignoring and setting " .. rate .. " to " .. originalRate)
+                    newRate = originalRate
+                end
+                var.rates[originalRate] = newRate
+                table.insert(var.rateList, originalRate)
             end
-            if newRate == nil then
-                msg.warn("missing rate after hyphen in whitelist for option: " .. rate)
-                msg.warn("ignoring and setting " .. rate .. " to " .. originalRate)
-                newRate = originalRate
-            end
-            var.rates[originalRate] = newRate
-            rate = originalRate
         else
             rate = tonumber(rate)
-            var.rates[rate] = rate
+            if rate ~= nil then
+                var.rates[rate] = rate
+                table.insert(var.rateList, rate)
+            end
         end
-        table.insert(var.rateList, rate)
-
-        ::loopend::
     end
 
     if #var.rateList < 1 then

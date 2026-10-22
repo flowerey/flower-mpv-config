@@ -55,7 +55,7 @@ local locals = {
 }
 
 -- apply lang opts
-local texts = locals[o.language]
+local texts = locals[o.language] or locals['eng']
 
 -- `pl` stands for playlist
 local path = nil
@@ -74,13 +74,22 @@ local normalize_path = nil
 local wait_msg
 local on_key = false
 
+local config_dir = mp.command_native({ "expand-path", "~~/" })
+
 if o.history_dir:find('^/:dir%%mpvconf%%') then
-    history_dir = o.history_dir:gsub('/:dir%%mpvconf%%', mp.find_config_file('.'))
+    history_dir = o.history_dir:gsub('/:dir%%mpvconf%%', function() return config_dir end)
 elseif o.history_dir:find('^/:dir%%script%%') then
-    history_dir = o.history_dir:gsub('/:dir%%script%%', mp.find_config_file('scripts'))
+    local script_dir = utils.join_path(config_dir, 'scripts')
+    history_dir = o.history_dir:gsub('/:dir%%script%%', function() return script_dir end)
 elseif o.history_dir:find('/:var%%(.*)%%') then
     local os_variable = o.history_dir:match('/:var%%(.*)%%')
-    history_dir = o.history_dir:gsub('/:var%%(.*)%%', os.getenv(os_variable))
+    local os_value = os.getenv(os_variable)
+    if os_value then
+        history_dir = o.history_dir:gsub('/:var%%' .. os_variable .. '%%', function() return os_value end)
+    else
+        msg.warn("environment variable not set: " .. tostring(os_variable))
+        history_dir = ""
+    end
 else
     history_dir = mp.command_native({ "expand-path", o.history_dir }) -- Expands both ~ and ~~
 end

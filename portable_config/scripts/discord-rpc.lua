@@ -92,8 +92,8 @@ local discordRPClib
 local rpc_initialized = false
 
 local function load_discord_rpc()
-    local mpv_dir = mp.get_property("mpv-home") or ""
-    local config_dir = mp.get_property("user-data-dir") or mp.get_property("mpv-home") or ""
+    local config_dir = mp.command_native({ "expand-path", "~~/" })
+    local rpc_dir = utils.join_path(config_dir, "libs/discord-rpc")
 
     -- Platform-specific library search paths
     local paths = {}
@@ -104,9 +104,9 @@ local function load_discord_rpc()
 
         paths = {
             "discord-rpc",
-            config_dir .. "/libs/discord-rpc/" .. arch_dll,
-            mpv_dir .. "/discord-rpc.dll",
-            mpv_dir .. "/libdiscord-rpc.dll",
+            utils.join_path(rpc_dir, arch_dll),
+            utils.join_path(config_dir, "discord-rpc.dll"),
+            utils.join_path(config_dir, "libdiscord-rpc.dll"),
             "C:/msys64/mingw64/bin/libdiscord-rpc.dll",
             os.getenv("LOCALAPPDATA") and (os.getenv("LOCALAPPDATA") .. "/mpv/discord-rpc.dll") or nil,
         }
@@ -116,8 +116,8 @@ local function load_discord_rpc()
             os.getenv("HOME") .. "/.local/lib/libdiscord-rpc.so",
             "/usr/local/lib/libdiscord-rpc.so",
             "/usr/lib/libdiscord-rpc.so",
-            mpv_dir ~= "" and (mpv_dir .. "/libdiscord-rpc.so") or nil,
-            mpv_dir ~= "" and (mpv_dir .. "/discord-rpc.so") or nil,
+            utils.join_path(config_dir, "libdiscord-rpc.so"),
+            utils.join_path(config_dir, "discord-rpc.so"),
         }
     end
 

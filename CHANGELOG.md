@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **autoload.lua** — synced to mpv master (directory-path guard)
+- **manga-reader.lua** — synced to upstream master; kept continuous-mode boundary fix
+- **webm.lua** — updated to the latest upstream release build
+- **osc.lua** — `vidscale` now supports `auto`/`yes`/`no` as in current mpv
+- **README.md** — corrected script descriptions and keybinding notes
+
+### Fixed
+- **change-refresh.lua** — removed Lua 5.2-only `goto`, restoring LuaJIT/Lua 5.1 compatibility
+- **discord-rpc.lua** — resolve bundled Discord RPC DLL from the mpv config directory
+- **history-bookmark.lua** — hardened config/environment path handling and language fallback
+- **abloop.lua** — handles the `script-message ab-loop` binding used by `input.conf`
+- **betterchapters.lua** — replaced deprecated OSC messages with `show-text`; avoids duplicate chapter OSD
+- **input.conf** — `Shift+s` now uses valid `no-osd screenshot`; PGUP/PGDWN use chapter-wrap bindings
+- **reload-config.lua** — no longer claims to reload options that mpv only reads at startup
+
 ## [2.1.0] - 2025-08-31
 
 ### Changed
