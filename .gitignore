@@ -1,0 +1,17 @@
+# mpv runtime data
+historybookmarks/
+watch_later/
+*.history
+sub-delays.json
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Editor swap files
+*.swp
+*.swo
+*~
+
+# Local working notes (not part of the config)
+AUDIT.md

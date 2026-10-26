@@ -1,0 +1,14 @@
+# Everything in this repo is text and LF-only: CRLF made diffs and patches
+# unreadable, and mpv/Lua do not need platform line endings.
+* text=auto eol=lf
+
+# Real binaries
+*.ttf binary
+*.otf binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.7z binary
+*.png binary
+*.jpg binary
+*.ico binary

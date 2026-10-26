@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  config:
+    name: Config, bindings and line endings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check config, key bindings and script targets
+        run: node tools/check-config.mjs
+
+  lua:
+    name: Lua 5.1 syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Lua 5.1
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.1
+
+      # mpv ships LuaJIT, so scripts must parse as 5.1: this is what catches
+      # 5.2+ only syntax such as goto/labels.
+      - name: Parse every script
+        run: |
+          status=0
+          while IFS= read -r -d '' file; do
+            if ! luac5.1 -p "$file"; then
+              status=1
+            fi
+          done < <(find portable_config/scripts -name '*.lua' -print0)
+          exit $status
