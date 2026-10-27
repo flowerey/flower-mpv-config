@@ -19,6 +19,10 @@
 - **README.md** — corrected script descriptions and keybinding notes
 - **script-opts/** — renamed from `scripts-opts/` so mpv actually loads every option file. Names follow mpv's own rule: a script's client name replaces every non-alphanumeric character with `_`, so `dynamic-crop.lua` reads `dynamic_crop.conf`; explicit identifiers such as `manga-reader` stay exactly as written
 - **mpv.conf** — disabled the built-in OSC (`osc=no`) because the custom `scripts/osc.lua` is authoritative; guarded resolution/filename profile conditions
+- **mpv.conf** — `deband` is no longer global. It was enabled with 4 iterations, threshold 35 and range 16, applied to every file including ones that do not band; mpv's built-in parameters (1 iteration, threshold 64, range 16) are already sensible and debanding is destructive, so it is now off and toggled per video with `b` (mpv's stock keybind, left unbound here). `[simulcast]` is the only profile that turns it on, which is what upstream thewiki's `simulcast` profile is for
+- **mpv.conf** — `interpolation` is off; it was on globally, giving every file motion interpolation at significant GPU cost. `video-sync=display-resample` stays, since that is what removes 23.976-on-60Hz judder and it does not depend on interpolation
+- **mpv.conf** — `[SD-Content]` no longer sets `deband-iterations=6`; the extra passes only blurred the SD sources the profile was meant to improve. It now applies antiring alone
+- **mpv.conf** — dropped the `deband=no`/`interpolation=no` lines from `[Manga]`, `[4K-Native]` and `[low-power]`. Those are the global defaults now, so the profiles only state what they actually change (`dscale`, cache size, `video-sync`)
 - **mpv.conf** — removed the global `panscan=0.5`. It fills the screen by cropping, which cut the top/bottom off 4:3 releases and the edges off scope releases, taking typesetting with it. `p` and the wheel still pan on demand
 - **mpv.conf** — `[4K-Native]` now sets `dscale=bilinear` instead of `scale=bilinear`; `scale` only applies when upscaling, so it never affected 4K playback on a smaller screen
 - **mpv.conf** — `[Manga]` sets `profile-restore=copy` like every other auto profile, so `deband=no` no longer leaks into the next video opened in the same session
@@ -29,9 +33,11 @@
 - **mpv.yml** — the hourly mpv commit poll now authenticates to the GitHub API instead of sharing the unauthenticated rate limit
 - **README.md / help-overlay.lua** — dropped every key that was never actually bound (see Removed) and documented `W`, `p` and `k`
 - **README.md** — documents the stock mpv keys this config replaces, the `low-power` profile, thumbfast's `mpv_path`, `nircmd` for `F10`, and which scripts talk to the network
+- **README.md** — documents `b`, that deband and interpolation are now off by default, and what `[low-power]` actually changes
 - **Repository** — all text files are now LF instead of CRLF
 
 ### Fixed
+- **mpv.conf** — `scale-antiring=0.6` looked like a restatement of `profile=high-quality`, but that profile only gained `scale-antiring=0.6` after mpv 0.41 — on 0.41 it brings no antiring at all. Kept, with a comment saying why, so the oldest supported mpv and the bundled mpv git build behave identically
 - **mpv.conf** — removed the inert `sub-ass-style-overrides` line. It used `playresx`/`playresy`, but the option's keys are `res_x`/`res_y`, and `sub-ass-override=no` disables style overrides anyway, so it never did anything
 - **mpv.conf** — restored `sub-ass-override=no`, which an earlier cleanup in this release had dropped; without it every ASS release renders with this config's override styles instead of its own typesetting
 - **input.conf** — `k` now spells the command `cycle-values` (`cycle_values` also worked: mpv rewrites `_` to `-` when resolving command names)

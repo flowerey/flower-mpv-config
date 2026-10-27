@@ -16,8 +16,9 @@ d  deinterlace                A  aspect ratio
 L / Shift+L  loop file/playlist  Ctrl+v  audio-only
 C  dynamic crop               y  manga reader
 c / d / m  reader continuous / double / direction
-p  cycle panscan              k  ASS style override
-D  Discord RPC                Ctrl+Shift+r  restart notice
+p  cycle panscan              b  toggle deband
+k  ASS style override         D  Discord RPC
+Ctrl+Shift+r  restart notice
 ? / F1  this help
 Next episode and subtitle delay are handled automatically.]]
 

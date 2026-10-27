@@ -36,6 +36,7 @@ Requires mpv 0.41+ (use a LuaJIT build for Discord RPC).
 | `v` | Toggle subtitles |
 | `m` | Mute |
 | `p` | Cycle panscan |
+| `b` | Toggle debanding |
 | `k` | Toggle ASS style override |
 | `Shift+Enter` | Playlist manager |
 | `F` / `Alt+f` | Stream video/audio quality menu |
@@ -64,11 +65,13 @@ These keys replace stock mpv bindings, so the originals are gone: `p` no longer 
 - **Manga reader** is toggled with `y`. While open, `c`/`d`/`m` toggle continuous/double-page/direction; defaults are in `script-opts/manga-reader.conf`.
 - **Next episode** advances on its own. Because `keep-open=yes` parks on the last frame, a file in a playlist would otherwise never hand over; a countdown appears at EOF, `Enter` goes immediately and `Esc` stays. Delay is in `script-opts/next_episode.conf`.
 - **Subtitle delay memory** (no key) stores the offset you set with `Ctrl+Left/Right` and reapplies it to the same file and folder, so a batch only needs syncing once. `Ctrl+9` clears it. Disable in `script-opts/auto_sub_sync.conf`.
+- **Debanding is off by default.** It is a destructive filter — every pass rewrites the image and can eat fine detail — and mpv's built-in parameters (1 iteration, threshold 64, range 16) are already sensible, so it is opt-in: press `b` during playback, or pass `--deband-iterations`/`--deband-threshold`/`--deband-range` for a source that needs more than that. The `[simulcast]` auto profile is the one exception, since banding-prone seasonal web releases are what it exists for.
+- **Motion interpolation is off by default.** `interpolation=yes` converts film cadence into the video look and is the most expensive option in the file; add it to `portable_config/mpv.conf` if you want it. `video-sync=display-resample` stays on regardless — that, not interpolation, is what removes 23.976-on-60Hz judder.
 - **Panscan is off by default.** It fills the screen by cropping, which removes the top/bottom of 4:3 releases and the edges of scope (2.39:1) releases — exactly where typesetting lives. Press `p` or use the mouse wheel when you want it.
 - **ASS subtitles render exactly as authored.** `sub-ass-override=no`, which also switches off `sub-ass-style-overrides`, so no config value can move or rescale a release's signs (press `k` to force the styling on). Your `sub-font`/`sub-color` settings apply to plain-text subtitles only.
 - **Refresh-rate switching (`F10`)** needs `nircmd.exe` on Windows (not bundled; put it on `PATH` or set `nircmd` in `script-opts/changerefresh.conf`) and `xrandr` on Linux. Without them the key does nothing.
 - **Thumbnail previews** come from thumbfast, which spawns a helper mpv for each thumbnail. That needs `mpv` to be resolvable: if you run mpv portably without it on `PATH`, set `mpv_path` to the full `mpv.exe` in `script-opts/thumbfast.conf`.
-- **Low-power playback.** The defaults assume a desktop GPU (interpolation, deband, high-quality scalers, up to 750 MiB of cache). On a laptop or integrated GPU, launch mpv with `--profile=low-power` (put it in a shortcut or script): it disables interpolation and deband, uses bilinear scalers and a 200 MiB cache.
+- **Low-power playback.** The defaults upscale with `ewa_lanczossharp` and keep up to 750 MiB of cache. On a laptop or integrated GPU, launch mpv with `--profile=low-power` (put it in a shortcut or script): bilinear scalers, audio-rate sync and a 200 MiB cache.
 - **Network use.** Discord RPC sends the parsed title (never the file path) to AniList/Jikan to fetch artwork, and the clip exporter can upload to catbox.moe when you choose that option. Turn RPC off with `D`; simply do not use the upload entry.
 
 ## Checks
